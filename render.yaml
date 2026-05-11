@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: ai-scm-dashboard
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: NOTION_TOKEN
+        sync: false
+      - key: RISK_DB_ID
+        sync: false
+      - key: KEYPART_DB_ID
+        sync: false
+      - key: ORDER_DB_ID
+        sync: false
+      - key: BOM_DB_ID
+        sync: false
+      - key: ACTION_DB_ID
+        sync: false

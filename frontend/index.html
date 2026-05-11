@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <title>AI SCM Dashboard v3.1</title>
+  <style>
+    body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    .page { display: none; }
+    .page.active { display: flex; flex-direction: column; }
+    .active-nav  { background:#2563EB; color:#fff; box-shadow:0 8px 24px #1e3a8a33; }
+    .inactive-nav { color:#64748b; }
+    .inactive-nav:hover { background:rgba(255,255,255,.05); color:#fff; }
+    .active-filter  { background:#0f172a; color:#fff; }
+    .inactive-filter { background:#fff; border:1px solid #e2e8f0; color:#475569; }
+    .inactive-filter:hover { background:#f8fafc; }
+  </style>
+</head>
+<body class="bg-[#F1F5F9] text-slate-800 flex h-screen overflow-hidden">
+
+  <!-- ── Sidebar ── -->
+  <aside class="w-72 bg-slate-950 text-white flex flex-col shrink-0">
+    <div class="p-8 pb-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/40">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-black">AI SCM <span class="text-blue-500">v3.1</span></h1>
+          <p class="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em] mt-0.5">Intelligence Core</p>
+        </div>
+      </div>
+    </div>
+
+    <nav class="flex-1 px-4 mt-3 space-y-1">
+      <button onclick="switchPage('risks')" id="nav-risks"
+        class="nav-btn active-nav w-full flex items-center gap-3 px-5 py-4 rounded-2xl font-bold text-sm transition-all">
+        <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+          <path d="M12 9v4"/><path d="M12 17h.01"/>
+        </svg>
+        預警儀表板
+      </button>
+
+      <button onclick="switchPage('orders')" id="nav-orders"
+        class="nav-btn inactive-nav w-full flex items-center gap-3 px-5 py-4 rounded-2xl font-bold text-sm transition-all">
+        <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/>
+          <path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/>
+        </svg>
+        工單需求管理
+      </button>
+
+      <button onclick="switchPage('bom')" id="nav-bom"
+        class="nav-btn inactive-nav w-full flex items-center gap-3 px-5 py-4 rounded-2xl font-bold text-sm transition-all">
+        <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <rect width="8" height="4" x="8" y="2" rx="1"/>
+          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+          <path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>
+        </svg>
+        BOM 結構瀏覽
+      </button>
+
+      <button onclick="switchPage('review')" id="nav-review"
+        class="nav-btn inactive-nav w-full flex items-center gap-3 px-5 py-4 rounded-2xl font-bold text-sm transition-all">
+        <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="m7 21 0-4"/><path d="m17 21 0-7"/><path d="m2 21 20 0"/>
+          <path d="m2 3 0 7"/><path d="m22 3 0 7"/><path d="m15 3 0 7"/><path d="m9 3 0 7"/>
+        </svg>
+        決議覆核中心
+        <span id="pending-badge" class="ml-auto bg-amber-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full hidden"></span>
+      </button>
+    </nav>
+
+    <div class="p-5">
+      <div class="bg-white/5 p-4 rounded-2xl border border-white/5">
+        <p class="text-[9px] text-slate-500 font-black uppercase tracking-widest mb-2">RAG 資料同步中</p>
+        <div class="h-1 bg-slate-800 rounded-full overflow-hidden">
+          <div class="w-3/4 h-full bg-blue-500 shadow-[0_0_8px_#3b82f6]"></div>
+        </div>
+        <p class="text-[9px] text-slate-600 font-bold mt-2">Notion DB × 5 已連接</p>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <header class="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-10 shrink-0 z-10">
+      <h2 id="page-title" class="text-xl font-black text-slate-900 uppercase tracking-tight">Risk Alert Center</h2>
+      <div class="flex items-center gap-4">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+          </svg>
+          <input type="text" placeholder="搜尋工單或料號..."
+            class="pl-10 pr-4 py-2.5 bg-slate-100 rounded-xl text-sm font-medium w-60 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+        </div>
+        <button class="relative p-2.5 bg-slate-100 rounded-xl hover:bg-slate-200 transition-all">
+          <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+          </svg>
+          <span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Page 1: Risks -->
+    <div id="page-risks" class="page active flex-1 overflow-y-auto p-10 custom-scrollbar">
+      <div class="grid grid-cols-4 gap-5 mb-8">
+        <div id="stat-all" onclick="filterNews('all')" class="stat-card bg-white p-6 rounded-2xl border-2 shadow-sm flex justify-between items-center cursor-pointer hover:shadow-md transition-all" style="border-color:#3b82f6">
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">即時新聞</p><h3 id="news-total" class="text-4xl font-black text-slate-900 mt-1">--</h3></div>
+          <div class="p-3 bg-slate-100 text-slate-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg></div>
+        </div>
+        <div id="stat-high" onclick="filterNews('high')" class="stat-card bg-white p-6 rounded-2xl border-2 border-transparent shadow-sm flex justify-between items-center cursor-pointer hover:shadow-md transition-all">
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">高風險 &gt; 80</p><h3 id="news-high" class="text-4xl font-black text-red-600 mt-1">--</h3></div>
+          <div class="p-3 bg-red-50 text-red-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg></div>
+        </div>
+        <div id="stat-med" onclick="filterNews('medium')" class="stat-card bg-white p-6 rounded-2xl border-2 border-transparent shadow-sm flex justify-between items-center cursor-pointer hover:shadow-md transition-all">
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">警戒 50–80</p><h3 id="news-med" class="text-4xl font-black text-amber-500 mt-1">--</h3></div>
+          <div class="p-3 bg-amber-50 text-amber-500 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/></svg></div>
+        </div>
+        <div id="stat-low" onclick="filterNews('low')" class="stat-card bg-white p-6 rounded-2xl border-2 border-transparent shadow-sm flex justify-between items-center cursor-pointer hover:shadow-md transition-all">
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">觀察 &lt; 50</p><h3 id="news-low" class="text-4xl font-black text-green-600 mt-1">--</h3></div>
+          <div class="p-3 bg-green-50 text-green-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
+        </div>
+      </div>
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h3 class="text-lg font-black text-slate-900">外部風險即時監測 (RSS Live)</h3>
+          <p class="text-xs text-slate-500 font-medium mt-0.5">即時監測全球供應鏈風險新聞，點擊上方數字可篩選風險等級</p>
+        </div>
+        <button onclick="openNewsPanel()" class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-900/20">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+          抓取最新新聞
+        </button>
+      </div>
+      <div id="risk-container" class="grid grid-cols-2 gap-7"></div>
+    </div>
+
+    <!-- Page 2: Orders -->
+    <div id="page-orders" class="page flex-1 overflow-y-auto p-10 custom-scrollbar">
+      <div class="grid grid-cols-4 gap-5 mb-8">
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">總工單數</p><h3 id="order-total" class="text-4xl font-black text-slate-900 mt-1">--</h3></div>
+          <div class="p-3 bg-blue-50 text-blue-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+          <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">國別分佈</p>
+          <div id="country-dist" class="flex gap-2 flex-wrap"></div>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">高風險工單</p><h3 id="order-risk" class="text-4xl font-black text-red-600 mt-1">--</h3></div>
+          <div class="p-3 bg-red-50 text-red-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg></div>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">總需求量</p><h3 id="order-qty" class="text-4xl font-black text-slate-900 mt-1 font-mono">--</h3></div>
+          <div class="p-3 bg-green-50 text-green-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2Z"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
+        </div>
+      </div>
+      <div class="flex gap-2 mb-6">
+        <button onclick="filterOrders('all')" id="filter-all" class="country-filter active-filter px-4 py-2 rounded-xl font-bold text-xs">全部</button>
+        <button onclick="filterOrders('NE')" id="filter-NE" class="country-filter inactive-filter px-4 py-2 rounded-xl font-bold text-xs">🇳🇱 NE</button>
+        <button onclick="filterOrders('PT')" id="filter-PT" class="country-filter inactive-filter px-4 py-2 rounded-xl font-bold text-xs">🇵🇹 PT</button>
+        <button onclick="filterOrders('EE')" id="filter-EE" class="country-filter inactive-filter px-4 py-2 rounded-xl font-bold text-xs">🇪🇪 EE</button>
+        <button onclick="filterOrders('PH')" id="filter-PH" class="country-filter inactive-filter px-4 py-2 rounded-xl font-bold text-xs">🇵🇭 PH</button>
+        <div class="flex-1"></div>
+        <button onclick="fetchOrders()" class="flex items-center gap-2 px-5 py-2 bg-white border border-slate-200 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+          刷新
+        </button>
+      </div>
+      <div id="order-container" class="space-y-3"></div>
+    </div>
+
+    <!-- Page 3: BOM -->
+    <div id="page-bom" class="page flex-1 overflow-y-auto p-10 custom-scrollbar">
+      <div class="flex gap-3 mb-8 items-end">
+        <div class="flex-1">
+          <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">機種料號 (SKU)</label>
+          <input id="sku-input" type="text" placeholder="輸入 SKU 料號篩選，留空顯示全部..."
+            class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-mono font-bold focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+        </div>
+        <button onclick="fetchBom(document.getElementById('sku-input').value)"
+          class="px-6 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-blue-600 transition-all">載入 BOM</button>
+        <button onclick="document.getElementById('sku-input').value='';fetchBom('')"
+          class="px-6 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">全部</button>
+      </div>
+      <div id="bom-container"></div>
+    </div>
+
+    <!-- Page 4: Review -->
+    <div id="page-review" class="page flex-1 overflow-y-auto p-10 custom-scrollbar">
+      <div class="grid grid-cols-4 gap-5 mb-8">
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">待審核</p><h3 id="act-pending" class="text-4xl font-black text-amber-500 mt-1">--</h3></div>
+          <div class="p-3 bg-amber-50 text-amber-500 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">已核准</p><h3 id="act-approved" class="text-4xl font-black text-green-600 mt-1">--</h3></div>
+          <div class="p-3 bg-green-50 text-green-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">已駁回</p><h3 id="act-rejected" class="text-4xl font-black text-red-600 mt-1">--</h3></div>
+          <div class="p-3 bg-red-50 text-red-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></div>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">總決策價值</p><h3 id="act-value" class="text-2xl font-black text-blue-600 mt-1 font-mono">--</h3></div>
+          <div class="p-3 bg-blue-50 text-blue-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
+        </div>
+      </div>
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="text-lg font-black text-slate-900">決策審核清單</h3>
+        <button onclick="fetchActions()" class="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+          刷新
+        </button>
+      </div>
+      <div id="action-container" class="space-y-4"></div>
+    </div>
+  </main>
+
+  <!-- ── Reject Modal ── -->
+  <div id="reject-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+    <div class="bg-white rounded-3xl p-8 w-[480px] shadow-2xl">
+      <h3 class="text-xl font-black text-slate-900 mb-1">駁回決策</h3>
+      <p class="text-sm text-slate-500 mb-5">駁回原因將回饋至 AI 模型進行邏輯優化。</p>
+      <textarea id="reject-reason" rows="4" placeholder="請詳細說明駁回原因..."
+        class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium resize-none focus:outline-none focus:ring-2 focus:ring-red-500/20"></textarea>
+      <div class="flex gap-3 mt-5">
+        <button onclick="closeRejectModal()" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-2xl font-bold text-sm hover:bg-slate-200">取消</button>
+        <button onclick="submitReject()" class="flex-1 py-3 bg-red-600 text-white rounded-2xl font-bold text-sm hover:bg-red-700">確認駁回</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── AI Evaluation Modal ── -->
+  <div id="eval-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6">
+    <div class="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="px-8 py-5 border-b border-slate-100 flex items-start justify-between shrink-0">
+        <div class="flex-1 min-w-0 pr-4">
+          <div class="flex items-center gap-2 mb-1">
+            <div class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+            <p class="text-[9px] font-black text-blue-600 uppercase tracking-widest">AI 風險影響評估</p>
+          </div>
+          <p id="eval-news-title" class="text-sm font-bold text-slate-700 line-clamp-2 leading-snug"></p>
+        </div>
+        <button onclick="closeEvalModal()" class="p-2 hover:bg-slate-100 rounded-xl text-slate-400 shrink-0">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div id="eval-body" class="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar"></div>
+      <div id="eval-footer" class="px-8 py-5 border-t border-slate-100 shrink-0 bg-slate-50/50"></div>
+    </div>
+  </div>
+
+  <!-- ── News Panel ── -->
+  <div id="news-panel" class="hidden fixed inset-0 z-50 flex justify-end">
+    <div class="absolute inset-0 bg-black/40" onclick="closeNewsPanel()"></div>
+    <div class="relative w-[560px] bg-white h-full flex flex-col shadow-2xl">
+      <div class="px-8 py-6 border-b border-slate-100 flex items-center justify-between shrink-0">
+        <div>
+          <h3 class="text-lg font-black text-slate-900">最新供應鏈新聞</h3>
+          <p class="text-xs text-slate-400 font-medium mt-0.5">選擇新聞，一鍵加入風險資料庫</p>
+        </div>
+        <button onclick="closeNewsPanel()" class="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div id="news-list" class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+        <p class="text-slate-400 text-sm font-bold text-center py-8">點擊「抓取新聞」載入...</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost'
+      ? 'http://127.0.0.1:8000' : '';
+    let allOrders = [];
+    let rejectPageId = null;
+
+    const TITLES = { risks:'Risk Alert Center', orders:'Demand Management', bom:'BOM Structure Browser', review:'Decision Review Center' };
+
+    function switchPage(name) {
+      document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+      document.getElementById(`page-${name}`).classList.add('active');
+      document.getElementById('page-title').innerText = TITLES[name];
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.className = btn.className.replace('active-nav', 'inactive-nav');
+      });
+      const nav = document.getElementById(`nav-${name}`);
+      nav.className = nav.className.replace('inactive-nav', 'active-nav');
+      if (name === 'orders') fetchOrders();
+      if (name === 'bom')    fetchBom('');
+      if (name === 'review') fetchActions();
+    }
+
+    /* ── News Feed (主畫面) ── */
+    let allNews = [];
+    let currentFilter = 'all';
+
+    const FILTER_COLORS = { all:'#3b82f6', high:'#dc2626', medium:'#f59e0b', low:'#16a34a' };
+    const STAT_IDS = { all:'stat-all', high:'stat-high', medium:'stat-med', low:'stat-low' };
+
+    async function fetchNewsFeed() {
+      const box = document.getElementById('risk-container');
+      box.innerHTML = '<p class="col-span-2 text-slate-400 text-sm font-bold py-8 text-center">正在抓取即時新聞...</p>';
+      try {
+        const { results } = await (await fetch(`${API}/api/news`)).json();
+        allNews = results || [];
+        document.getElementById('news-total').innerText = allNews.length;
+        document.getElementById('news-high').innerText  = allNews.filter(n => n.suggested_score > 0.8).length;
+        document.getElementById('news-med').innerText   = allNews.filter(n => n.suggested_score > 0.5 && n.suggested_score <= 0.8).length;
+        document.getElementById('news-low').innerText   = allNews.filter(n => n.suggested_score <= 0.5).length;
+        filterNews(currentFilter);
+      } catch(e) {
+        box.innerHTML = `<p class="col-span-2 text-red-500 font-bold text-sm py-8 text-center">連線失敗：${e.message}</p>`;
+      }
+    }
+
+    function filterNews(level) {
+      currentFilter = level;
+      // reset all stat card borders
+      document.querySelectorAll('.stat-card').forEach(c => { c.style.borderColor = 'transparent'; });
+      const card = document.getElementById(STAT_IDS[level]);
+      if (card) card.style.borderColor = FILTER_COLORS[level];
+      let list = allNews;
+      if (level === 'high')   list = allNews.filter(n => n.suggested_score > 0.8);
+      if (level === 'medium') list = allNews.filter(n => n.suggested_score > 0.5 && n.suggested_score <= 0.8);
+      if (level === 'low')    list = allNews.filter(n => n.suggested_score <= 0.5);
+      renderNewsCards(list);
+    }
+
+    let currentRenderedNews = [];
+
+    function renderNewsCards(list) {
+      currentRenderedNews = list;
+      const box = document.getElementById('risk-container');
+      if (!list.length) {
+        box.innerHTML = '<p class="col-span-2 text-slate-400 text-sm font-bold py-8 text-center">沒有符合條件的新聞</p>';
+        return;
+      }
+      box.innerHTML = list.map((n, i) => {
+        const sc     = Math.round((n.suggested_score || 0) * 100);
+        const hi     = n.suggested_score > 0.8, md = n.suggested_score > 0.5;
+        const col    = hi ? 'bg-red-600' : md ? 'bg-amber-500' : 'bg-blue-600';
+        const catCls = CAT_CLS[n.suggested_category] || CAT_CLS['新聞'];
+        const dateStr = n.pub_date ? n.pub_date.replace(/\s*\+\d{4}$/, '').replace('GMT','').trim().slice(0,22) : '';
+        return `
+          <div class="bg-white p-7 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-xl transition-all flex flex-col">
+            <div class="flex items-center gap-2 mb-4">
+              <span class="px-2.5 py-1 rounded-lg text-[10px] font-black border ${catCls}">${n.suggested_category}</span>
+              <span class="text-[10px] text-slate-400 font-bold">${n.source}</span>
+              <span class="ml-auto text-[10px] text-slate-300 font-mono">${dateStr}</span>
+            </div>
+            <div class="flex items-start gap-4 mb-4">
+              <div class="w-14 h-14 rounded-xl flex flex-col items-center justify-center ${col} text-white shadow-lg shrink-0">
+                <span class="text-[7px] opacity-70 font-mono font-bold">RISK</span>
+                <span class="text-xl font-black">${sc}</span>
+              </div>
+              <h5 class="flex-1 font-black text-sm text-slate-900 leading-snug">${n.title}</h5>
+            </div>
+            ${n.description ? `<p class="text-[12px] text-slate-500 font-medium leading-relaxed mb-4 flex-1">${n.description}</p>` : '<div class="flex-1"></div>'}
+            <div class="flex items-center gap-2 mt-auto pt-2 border-t border-slate-50">
+              <div class="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div class="h-full ${col} rounded-full" style="width:${sc}%"></div>
+              </div>
+              <button onclick="evaluateNews(${i})"
+                class="ml-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-black text-[11px] hover:bg-blue-700 transition-all shrink-0 shadow-md shadow-blue-900/20">
+                🔍 AI 評估
+              </button>
+              ${n.link ? `<a href="${n.link}" target="_blank" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-black text-[11px] hover:bg-slate-200 transition-all shrink-0">閱讀全文 →</a>` : ''}
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    /* ── News Panel ── */
+    const CAT_CLS = {
+      '政策':'bg-purple-50 text-purple-600 border-purple-100',
+      '市場':'bg-blue-50 text-blue-600 border-blue-100',
+      '地緣':'bg-red-50 text-red-600 border-red-100',
+      '自然':'bg-green-50 text-green-600 border-green-100',
+      '供應':'bg-amber-50 text-amber-600 border-amber-100',
+      '新聞':'bg-slate-50 text-slate-500 border-slate-200',
+    };
+
+    async function openNewsPanel() {
+      document.getElementById('news-panel').classList.remove('hidden');
+      const box = document.getElementById('news-list');
+      box.innerHTML = `<div class="text-center py-12">
+        <div class="inline-block w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-3"></div>
+        <p class="text-slate-400 text-sm font-bold">正在抓取最新新聞...</p>
+      </div>`;
+      try {
+        const { results } = await (await fetch(`${API}/api/news`)).json();
+        // 過濾掉主畫面已顯示的新聞（以標題前30字比對）
+        const shown = new Set(allNews.map(n => n.title.trim().slice(0, 30).toLowerCase()));
+        const fresh = results.filter(n => !shown.has(n.title.trim().slice(0, 30).toLowerCase()));
+        if (!fresh.length) {
+          box.innerHTML = '<p class="text-slate-400 text-sm font-bold text-center py-10">目前已是最新內容，沒有新增項目</p>';
+          return;
+        }
+        box.innerHTML = `<p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">找到 ${fresh.length} 則新新聞</p>` +
+          fresh.map((n, i) => {
+          const cls = CAT_CLS[n.suggested_category] || CAT_CLS['新聞'];
+          const score = Math.round((n.suggested_score||0.5) * 100);
+          return `
+            <div class="bg-white border border-slate-200 rounded-2xl p-5 hover:shadow-md transition-all">
+              <div class="flex items-center gap-2 mb-3">
+                <span class="px-2 py-0.5 rounded border text-[10px] font-black ${cls}">${n.suggested_category}</span>
+                <span class="text-[10px] text-slate-400 font-bold">${n.source}</span>
+                <span class="ml-auto text-[10px] font-mono font-black text-slate-500">風險 ${score}</span>
+              </div>
+              <p class="text-sm font-bold text-slate-800 leading-snug mb-2">${n.title}</p>
+              <p class="text-xs text-slate-500 leading-relaxed mb-4">${n.description||''}</p>
+              <div class="flex gap-2 items-center">
+                <select id="cat-${i}" class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none">
+                  ${['新聞','供應','市場','政策','地緣','自然'].map(c=>`<option value="${c}" ${c===n.suggested_category?'selected':''}>${c}</option>`).join('')}
+                </select>
+                <input id="sc-${i}" type="number" min="0" max="1" step="0.05" value="${n.suggested_score||0.5}"
+                  class="w-20 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold focus:outline-none">
+                <button onclick="addNewsToRisk(${i},'${encodeURIComponent(n.title)}','${encodeURIComponent(n.description||'')}','${encodeURIComponent(n.source||'')}')"
+                  class="px-4 py-1.5 bg-blue-600 text-white rounded-lg font-black text-xs hover:bg-blue-700 transition-all whitespace-nowrap">
+                  + 存入資料庫
+                </button>
+              </div>
+            </div>`;
+        }).join('');
+      } catch(e) {
+        box.innerHTML = `<p class="text-red-500 font-bold text-sm text-center py-8">抓取失敗：${e.message}</p>`;
+      }
+    }
+
+    function closeNewsPanel() {
+      document.getElementById('news-panel').classList.add('hidden');
+    }
+
+    async function addNewsToRisk(idx, titleEnc, descEnc, sourceEnc) {
+      const cat   = document.getElementById(`cat-${idx}`).value;
+      const score = parseFloat(document.getElementById(`sc-${idx}`).value);
+      const title = decodeURIComponent(titleEnc);
+      const desc  = decodeURIComponent(descEnc);
+      const source = decodeURIComponent(sourceEnc);
+      const btn   = event.target;
+      btn.disabled = true; btn.innerText = '儲存中...';
+      try {
+        const r = await fetch(`${API}/api/news/add-risk`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ title, description: desc, category: cat, risk_score: score, source })
+        });
+        if (r.ok) {
+          btn.innerText = '✓ 已儲存';
+          btn.className = btn.className.replace('bg-blue-600 hover:bg-blue-700', 'bg-green-600');
+        } else {
+          btn.disabled = false; btn.innerText = '+ 存入資料庫';
+          alert('儲存失敗：' + (await r.json()).detail);
+        }
+      } catch(e) {
+        btn.disabled = false; btn.innerText = '+ 存入資料庫';
+      }
+    }
+
+    /* ── AI Evaluation ── */
+    function evaluateNews(idx) {
+      openEvalModal(currentRenderedNews[idx]);
+    }
+
+    async function openEvalModal(n) {
+      document.getElementById('eval-modal').classList.remove('hidden');
+      document.getElementById('eval-news-title').innerText = n.title;
+      document.getElementById('eval-body').innerHTML = `
+        <div class="text-center py-14">
+          <div class="inline-block w-10 h-10 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+          <p class="text-slate-500 font-bold text-sm">正在比對 RAG 知識庫並分析衝擊鏈...</p>
+          <p class="text-slate-400 text-xs mt-1">查詢零件、BOM、工單關聯中</p>
+        </div>`;
+      document.getElementById('eval-footer').innerHTML = '';
+      try {
+        const resp = await fetch(`${API}/api/news/evaluate`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({
+            title: n.title, description: n.description || '',
+            suggested_category: n.suggested_category, suggested_score: n.suggested_score || 0.5,
+          })
+        });
+        if (!resp.ok) throw new Error((await resp.json()).detail);
+        renderEvalResult(n, await resp.json());
+      } catch(e) {
+        document.getElementById('eval-body').innerHTML =
+          `<p class="text-red-500 font-bold text-sm text-center py-8">評估失敗：${e.message}</p>`;
+      }
+    }
+
+    function closeEvalModal() {
+      document.getElementById('eval-modal').classList.add('hidden');
+    }
+
+    function renderEvalResult(n, r) {
+      const sc  = Math.round((n.suggested_score || 0) * 100);
+      const hi  = n.suggested_score > 0.8, md = n.suggested_score > 0.5;
+      const col = hi ? 'bg-red-600' : md ? 'bg-amber-500' : 'bg-blue-600';
+
+      // RAG 知識庫
+      const ragHtml = r.matched_risks.length ? r.matched_risks.map(rk => `
+        <div class="flex gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+          <span class="font-mono text-[10px] font-black text-slate-400 shrink-0 pt-0.5 w-10">${rk.event_id}</span>
+          <p class="text-xs text-slate-600 font-medium leading-relaxed flex-1">${rk.description}</p>
+          <span class="text-[10px] font-black shrink-0 pt-0.5 ${rk.risk_score>0.8?'text-red-500':rk.risk_score>0.5?'text-amber-500':'text-blue-500'}">${Math.round(rk.risk_score*100)}</span>
+        </div>`).join('')
+        : '<p class="text-xs text-slate-400 py-2">無高度相符的知識庫條目</p>';
+
+      // 受影響零件
+      const partsHtml = r.affected_parts.length ? r.affected_parts.map(p => `
+        <div onclick="jumpToBom()" class="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:shadow-sm cursor-pointer transition-all">
+          <div class="flex-1 min-w-0">
+            <p class="font-mono font-black text-slate-900 text-sm">${p.gbt_pn}</p>
+            <p class="text-[10px] text-slate-400 font-medium truncate">${p.vendor_note || p.vendor}</p>
+          </div>
+          <div class="text-right shrink-0">
+            <p class="font-mono font-bold text-blue-600">$${(p.unit_price||0).toLocaleString()}</p>
+            <p class="text-[10px] text-slate-400">${p.vendor}</p>
+          </div>
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" class="text-slate-300" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+        </div>`).join('')
+        : '<p class="text-xs text-slate-400 py-2">未偵測到直接受影響零件</p>';
+
+      // 受影響工單
+      const FLAGS = { NE:'🇳🇱', PT:'🇵🇹', EE:'🇪🇪', PH:'🇵🇭' };
+      const ordersHtml = r.affected_orders.length ? r.affected_orders.map(o => `
+        <div onclick="jumpToOrders()" class="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:shadow-sm cursor-pointer transition-all">
+          <span class="text-lg shrink-0">${FLAGS[o.country]||'🌐'}</span>
+          <div class="flex-1">
+            <p class="font-mono font-black text-slate-900 text-sm">${o.order_id}</p>
+            <p class="text-[10px] text-slate-400">SKU ${o.sku_pn} · ${o.country}</p>
+          </div>
+          <p class="font-mono font-bold text-slate-700 shrink-0">${(o.quantity||0).toLocaleString()} pcs</p>
+          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" class="text-slate-300" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+        </div>`).join('')
+        : '<p class="text-xs text-slate-400 py-2">暫無直接關聯工單</p>';
+
+      document.getElementById('eval-body').innerHTML = `
+        <!-- 風險摘要 -->
+        <div class="flex items-start gap-4 p-5 ${hi?'bg-red-50 border-red-100':md?'bg-amber-50 border-amber-100':'bg-blue-50 border-blue-100'} rounded-2xl border">
+          <div class="w-16 h-16 rounded-2xl flex flex-col items-center justify-center ${col} text-white shadow-lg shrink-0">
+            <span class="text-[7px] opacity-70 font-mono font-bold">RISK</span>
+            <span class="text-2xl font-black">${sc}</span>
+          </div>
+          <div class="flex-1">
+            <p class="font-black text-slate-900 text-sm">${n.suggested_category} 類風險</p>
+            <p class="text-xs text-slate-600 mt-1 leading-relaxed">${r.recommendation}</p>
+          </div>
+        </div>
+
+        <!-- RAG 知識庫比對 -->
+        <div>
+          <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">
+            📚 RAG 知識庫比對 — ${r.matched_risks.length} 筆相關風險事件
+          </p>
+          <div class="space-y-2">${ragHtml}</div>
+        </div>
+
+        <!-- 受影響零件 -->
+        <div>
+          <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">
+            ⚠️ 受影響關鍵零件 — ${r.affected_parts.length} 項
+            <span class="text-slate-300 normal-case font-medium tracking-normal ml-1">點擊跳轉 BOM 結構瀏覽</span>
+          </p>
+          <div class="space-y-2">${partsHtml}</div>
+        </div>
+
+        <!-- 受影響工單 -->
+        <div>
+          <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">
+            📦 受影響工單 — ${r.affected_orders.length} 張 · 總量 ${(r.total_impact_qty||0).toLocaleString()} pcs
+            <span class="text-slate-300 normal-case font-medium tracking-normal ml-1">點擊跳轉工單管理</span>
+          </p>
+          <div class="space-y-2">${ordersHtml}</div>
+        </div>`;
+
+      // Footer: 建立決策
+      const sa = r.suggested_action;
+      const footer = document.getElementById('eval-footer');
+      if (sa) {
+        footer.innerHTML = `
+          <div class="flex items-center gap-4">
+            <div class="flex-1 min-w-0">
+              <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">AI 建議採購決策</p>
+              <p class="text-sm font-black text-slate-900">${sa.gbt_pn} <span class="text-slate-400 font-medium">×</span> ${(sa.suggested_qty).toLocaleString()} pcs</p>
+              <p class="text-xs text-slate-400 mt-0.5">供應商：${sa.vendor} · 估算金額 <span class="font-mono font-bold text-blue-600">$${(sa.estimated_cost||0).toLocaleString()}</span></p>
+            </div>
+            <button id="create-action-btn"
+              onclick="createActionFromEval('${encodeURIComponent(n.title)}','${encodeURIComponent(sa.gbt_pn)}','${sa.keypart_page_id}',${sa.suggested_qty})"
+              class="px-6 py-3 bg-blue-600 text-white rounded-2xl font-black text-sm hover:bg-blue-700 transition-all shrink-0 shadow-lg shadow-blue-900/20">
+              建立決策 → 覆核中心
+            </button>
+          </div>`;
+      } else {
+        footer.innerHTML = `<p class="text-xs text-slate-400 text-center py-1">風險評分偏低，目前無緊急採購建議</p>`;
+      }
+    }
+
+    function jumpToBom() {
+      closeEvalModal();
+      switchPage('bom');
+      fetchBom('');
+    }
+
+    function jumpToOrders() {
+      closeEvalModal();
+      switchPage('orders');
+      fetchOrders();
+    }
+
+    async function createActionFromEval(titleEnc, pnEnc, keypartPageId, qty) {
+      const title = decodeURIComponent(titleEnc);
+      const gbt_pn = decodeURIComponent(pnEnc);
+      const btn = document.getElementById('create-action-btn');
+      btn.disabled = true; btn.innerText = '建立中...';
+      try {
+        const resp = await fetch(`${API}/api/news/create-action`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ trigger_title: title, gbt_pn, keypart_page_id: keypartPageId, suggested_qty: qty })
+        });
+        if (!resp.ok) throw new Error((await resp.json()).detail);
+        btn.innerText = '✓ 決策已建立';
+        btn.className = btn.className.replace('bg-blue-600 hover:bg-blue-700','bg-green-600 hover:bg-green-700');
+        // 更新 sidebar 待審核 badge
+        const badge = document.getElementById('pending-badge');
+        const cur = parseInt(badge.innerText) || 0;
+        badge.innerText = cur + 1;
+        badge.classList.remove('hidden');
+        setTimeout(() => {
+          closeEvalModal();
+          switchPage('review');
+          fetchActions();
+        }, 900);
+      } catch(e) {
+        btn.disabled = false; btn.innerText = '建立決策 → 覆核中心';
+        alert('建立失敗：' + e.message);
+      }
+    }
+
+    /* ── Orders ── */
+    const COUNTRY = { NE:'🇳🇱', PT:'🇵🇹', EE:'🇪🇪', PH:'🇵🇭' };
+    const STATUS_CLS = {
+      'High Risk':'bg-red-50 text-red-600 border-red-100','高風險':'bg-red-50 text-red-600 border-red-100',
+      'Normal':'bg-green-50 text-green-600 border-green-100','正常':'bg-green-50 text-green-600 border-green-100',
+      'Warning':'bg-amber-50 text-amber-600 border-amber-100','警戒':'bg-amber-50 text-amber-600 border-amber-100',
+    };
+
+    async function fetchOrders() {
+      const box = document.getElementById('order-container');
+      box.innerHTML = '<p class="text-slate-400 text-sm font-bold py-4">載入中...</p>';
+      try {
+        const { results } = await (await fetch(`${API}/api/orders`)).json();
+        allOrders = results.filter(o => o.order_id);
+        document.getElementById('order-total').innerText = allOrders.length;
+        document.getElementById('order-risk').innerText  = allOrders.filter(o => ['High Risk','高風險'].includes(o.status)).length;
+        document.getElementById('order-qty').innerText   = allOrders.reduce((s,o)=>s+(o.quantity||0),0).toLocaleString();
+        const dist = {};
+        allOrders.forEach(o => { if(o.country) dist[o.country]=(dist[o.country]||0)+1; });
+        document.getElementById('country-dist').innerHTML = Object.entries(dist).map(([c,n])=>
+          `<span class="px-2 py-1 bg-slate-100 rounded-lg text-xs font-bold">${COUNTRY[c]||''} ${c} <span class="text-slate-400">${n}</span></span>`
+        ).join('');
+        renderOrders(allOrders);
+      } catch(e) {
+        box.innerHTML = `<p class="text-red-500 font-bold text-sm py-4">連線失敗：${e.message}</p>`;
+      }
+    }
+
+    function filterOrders(country) {
+      document.querySelectorAll('.country-filter').forEach(b => {
+        b.className = b.className.replace('active-filter','inactive-filter');
+      });
+      document.getElementById(`filter-${country}`).className =
+        document.getElementById(`filter-${country}`).className.replace('inactive-filter','active-filter');
+      renderOrders(country === 'all' ? allOrders : allOrders.filter(o => o.country === country));
+    }
+
+    function renderOrders(list) {
+      const box = document.getElementById('order-container');
+      if (!list.length) { box.innerHTML = '<p class="text-slate-400 text-sm font-bold py-4">沒有符合條件的工單</p>'; return; }
+      box.innerHTML = list.map(o => `
+        <div class="bg-white px-6 py-5 rounded-2xl border border-slate-200 flex items-center gap-5 hover:shadow-md transition-all">
+          <div class="w-11 h-11 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center text-xl shrink-0">${COUNTRY[o.country]||'🌐'}</div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-3 mb-1">
+              <span class="font-mono font-black text-slate-900 text-sm">${o.order_id}</span>
+              <span class="px-2 py-1 bg-blue-50 text-blue-600 border border-blue-100 rounded text-[10px] font-black">BOM ${o.bom_count} 零件</span>
+            </div>
+            <div class="flex gap-5 text-xs text-slate-500 font-medium">
+              <span>SKU <span class="font-mono font-bold text-slate-700">${o.sku_pn||'--'}</span></span>
+              <span>需求量 <span class="font-mono font-bold text-slate-700">${(o.quantity||0).toLocaleString()} pcs</span></span>
+              <span>國別 <span class="font-bold text-slate-700">${o.country||'--'}</span></span>
+            </div>
+          </div>
+          <button onclick="viewBom('${o.sku_pn}')" class="px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-700 transition-all shrink-0">查看 BOM →</button>
+        </div>`).join('');
+    }
+
+    function viewBom(skuPn) {
+      switchPage('bom');
+      document.getElementById('sku-input').value = skuPn;
+      fetchBom(skuPn);
+    }
+
+    /* ── BOM ── */
+    async function fetchBom(skuPn) {
+      const box = document.getElementById('bom-container');
+      box.innerHTML = '<p class="text-slate-400 text-sm font-bold py-4">載入中...</p>';
+      try {
+        const { results } = await (await fetch(`${API}/api/bom`)).json();
+        let items = results.filter(b => b.gbt_pn || b.sku_pn);
+        if (skuPn) items = items.filter(b => b.sku_pn?.toLowerCase().includes(skuPn.toLowerCase()));
+        if (!items.length) { box.innerHTML = '<p class="text-slate-400 text-sm font-bold py-4">沒有符合條件的 BOM 資料</p>'; return; }
+        const grouped = {};
+        items.forEach(b => { const k = b.sku_pn||'(未指定 SKU)'; if(!grouped[k]) grouped[k]=[]; grouped[k].push(b); });
+        box.innerHTML = Object.entries(grouped).map(([sku, parts]) => `
+          <div class="bg-white rounded-2xl border border-slate-200 mb-5 overflow-hidden shadow-sm">
+            <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
+              <span class="font-mono font-black text-slate-900">${sku}</span>
+              <span class="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-black text-slate-500">${parts.length} 項零件</span>
+            </div>
+            <table class="w-full text-sm">
+              <thead><tr class="border-b border-slate-100">
+                <th class="text-left px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">料號 (GBT_PN)</th>
+                <th class="text-left px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">供應商</th>
+                <th class="text-left px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">單價 (USD)</th>
+                <th class="text-left px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">供應商備註</th>
+              </tr></thead>
+              <tbody>${parts.map(p=>`
+                <tr class="border-b border-slate-50 hover:bg-slate-50 transition-all">
+                  <td class="px-6 py-3 font-mono font-bold text-slate-800 text-sm">${p.gbt_pn||'--'}</td>
+                  <td class="px-6 py-3 text-slate-600 font-medium text-sm">${p.vendor||'--'}</td>
+                  <td class="px-6 py-3 font-mono font-bold text-blue-600 text-sm">$${(p.unit_price||0).toLocaleString()}</td>
+                  <td class="px-6 py-3 text-slate-400 text-xs max-w-xs truncate" title="${p.vendor_note||''}">${p.vendor_note||'--'}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`).join('');
+      } catch(e) {
+        box.innerHTML = `<p class="text-red-500 font-bold text-sm py-4">連線失敗：${e.message}</p>`;
+      }
+    }
+
+    /* ── Actions ── */
+    const ACT_CLS = {
+      'Pending':'bg-amber-50 text-amber-600 border-amber-100','待審核':'bg-amber-50 text-amber-600 border-amber-100',
+      'Approved':'bg-green-50 text-green-600 border-green-100','核准':'bg-green-50 text-green-600 border-green-100',
+      'Rejected':'bg-red-50 text-red-600 border-red-100','駁回':'bg-red-50 text-red-600 border-red-100',
+    };
+
+    async function fetchActions() {
+      const box = document.getElementById('action-container');
+      box.innerHTML = '<p class="text-slate-400 text-sm font-bold py-4">載入中...</p>';
+      try {
+        const { results } = await (await fetch(`${API}/api/actions`)).json();
+        const acts = results.filter(a => a.action_id);
+        const pending  = acts.filter(a => ['Pending','待審核'].includes(a.status)).length;
+        const approved = acts.filter(a => ['Approved','核准'].includes(a.status)).length;
+        const rejected = acts.filter(a => ['Rejected','駁回'].includes(a.status)).length;
+        const totalVal = acts.reduce((s,a)=>s+(a.total_cost||0),0);
+        document.getElementById('act-pending').innerText  = pending;
+        document.getElementById('act-approved').innerText = approved;
+        document.getElementById('act-rejected').innerText = rejected;
+        document.getElementById('act-value').innerText    = '$'+totalVal.toLocaleString('en-US',{maximumFractionDigits:0});
+        const badge = document.getElementById('pending-badge');
+        pending > 0 ? (badge.innerText=pending, badge.classList.remove('hidden')) : badge.classList.add('hidden');
+
+        box.innerHTML = acts.length ? acts.map(a => {
+          const isPending = ['Pending','待審核'].includes(a.status);
+          const cls = ACT_CLS[a.status] || 'bg-slate-50 text-slate-500 border-slate-100';
+          const skuTags = (a.affected_skus||[]).map(s=>`<span class="px-2 py-0.5 bg-slate-100 rounded font-mono text-[10px] font-bold">${s}</span>`).join(' ');
+          const orderTags = (a.affected_orders||[]).map(o=>`<span class="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded font-mono text-[10px] font-bold">${o}</span>`).join(' ');
+          return `
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all">
+
+              <!-- 標題列 -->
+              <div class="flex items-center justify-between mb-5">
+                <div class="flex items-center gap-3">
+                  <span class="font-mono font-black text-slate-900 text-base">${a.action_id}</span>
+                  <span class="px-2 py-0.5 rounded border text-[10px] font-black uppercase ${cls}">${a.status}</span>
+                </div>
+                <div class="text-right">
+                  <p class="text-[9px] text-slate-400 font-black uppercase tracking-widest">總決策價值</p>
+                  <p class="font-mono font-black text-blue-600 text-lg">$${(a.total_cost||0).toLocaleString('en-US',{maximumFractionDigits:0})}</p>
+                </div>
+              </div>
+
+              <!-- 建議採購零件 -->
+              <div class="flex gap-4 mb-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <div class="flex-1">
+                  <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">建議採購零件</p>
+                  <p class="font-mono font-black text-slate-900">${a.gbt_pn||'--'}</p>
+                  <p class="text-xs text-slate-500 font-medium mt-0.5">${a.vendor||'--'}</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">單價</p>
+                  <p class="font-mono font-bold text-slate-700">$${(a.unit_price||0).toLocaleString()}</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">建議補貨量</p>
+                  <p class="font-mono font-bold text-slate-700">${(a.suggested_qty||0).toLocaleString()} pcs</p>
+                </div>
+              </div>
+
+              <!-- 衝擊鏈 -->
+              <div class="p-4 bg-amber-50 rounded-2xl border border-amber-100 mb-4">
+                <p class="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-3">衝擊鏈分析 Impact Chain</p>
+                <div class="flex items-center gap-2 text-xs font-bold flex-wrap">
+                  <span class="px-2 py-1 bg-amber-100 text-amber-700 rounded-lg font-mono">${a.gbt_pn||'--'}</span>
+                  <span class="text-amber-400">→ BOM →</span>
+                  <span class="flex gap-1 flex-wrap">${skuTags||'<span class="text-slate-400">無</span>'}</span>
+                  <span class="text-amber-400">→ 工單 →</span>
+                  <span class="flex gap-1 flex-wrap">${orderTags||'<span class="text-slate-400">無</span>'}</span>
+                  ${a.affected_qty?`<span class="ml-auto text-amber-600 font-black">${(a.affected_qty||0).toLocaleString()} pcs 受影響</span>`:''}
+                </div>
+              </div>
+
+              ${isPending?`
+                <div class="flex gap-3 justify-end">
+                  <button onclick="approveAction('${a.page_id}')" class="px-6 py-2.5 bg-green-600 text-white rounded-xl font-black text-xs hover:bg-green-700 transition-all">✓ 核准採購</button>
+                  <button onclick="openRejectModal('${a.page_id}')" class="px-6 py-2.5 bg-white border border-red-200 text-red-600 rounded-xl font-black text-xs hover:bg-red-50 transition-all">✗ 駁回</button>
+                </div>`:''}
+            </div>`;
+        }).join('') : '<p class="text-slate-400 text-sm font-bold py-4">目前沒有決策記錄</p>';
+      } catch(e) {
+        box.innerHTML = `<p class="text-red-500 font-bold text-sm py-4">連線失敗：${e.message}</p>`;
+      }
+    }
+
+    async function approveAction(pageId) {
+      if (!confirm('確認核准此決策並記錄審核時間？')) return;
+      const r = await fetch(`${API}/api/actions/${pageId}/approve`, {
+        method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({reviewer:'PM Team'})
+      });
+      r.ok ? fetchActions() : alert('錯誤：' + (await r.json()).detail);
+    }
+
+    function openRejectModal(pageId) {
+      rejectPageId = pageId;
+      document.getElementById('reject-reason').value = '';
+      document.getElementById('reject-modal').classList.remove('hidden');
+    }
+    function closeRejectModal() {
+      rejectPageId = null;
+      document.getElementById('reject-modal').classList.add('hidden');
+    }
+    async function submitReject() {
+      const reason = document.getElementById('reject-reason').value.trim();
+      if (!reason) { alert('請輸入駁回原因'); return; }
+      const r = await fetch(`${API}/api/actions/${rejectPageId}/reject`, {
+        method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({reviewer:'PM Team', reason})
+      });
+      r.ok ? (closeRejectModal(), fetchActions()) : alert('錯誤：' + (await r.json()).detail);
+    }
+
+    window.onload = fetchNewsFeed;
+  </script>
+</body>
+</html>

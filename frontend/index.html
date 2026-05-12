@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-  <title>AI SCM Dashboard v3.1</title>
+  <title>AI智慧供應平台</title>
   <style>
     body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
     .font-mono { font-family: 'JetBrains Mono', monospace; }
@@ -19,12 +19,37 @@
     .active-filter  { background:#0f172a; color:#fff; }
     .inactive-filter { background:#fff; border:1px solid #e2e8f0; color:#475569; }
     .inactive-filter:hover { background:#f8fafc; }
+    /* RAGQA 知識庫專用樣式 */
+    .ragqa-card { background:#faf5ff; border:1px solid #d8b4fe; }
+    .ragqa-badge { background:#7c3aed; color:#fff; padding:2px 7px; border-radius:4px; font-size:9px; font-weight:900; letter-spacing:.05em; }
+    .ragqa-link { background:#ede9fe; border:1px solid #c4b5fd; color:#6d28d9; }
+    .regular-card { background:#f8fafc; border:1px solid #e2e8f0; }
+    .regular-link { background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; }
+    /* ── RWD Sidebar ── */
+    #sidebar { transition: transform .25s ease; }
+    #sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:30; }
+    @media (max-width:767px) {
+      #sidebar { position:fixed; top:0; left:0; height:100%; z-index:40; transform:translateX(-100%); }
+      #sidebar.open { transform:translateX(0); }
+      #sidebar-overlay.open { display:block; }
+    }
+    /* ── RWD JS-generated cards ── */
+    @media (max-width:639px) {
+      #order-container > div { flex-wrap:wrap; }
+      #action-container .proc-grid { flex-direction:column; gap:0.5rem; }
+      #bom-container .bom-table-wrap { overflow-x:auto; }
+      #bom-container table { min-width:440px; }
+      #notif-panel { width:calc(100vw - 2rem); }
+    }
   </style>
 </head>
 <body class="bg-[#F1F5F9] text-slate-800 flex h-screen overflow-hidden">
 
+  <!-- ── Sidebar overlay (mobile) ── -->
+  <div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
   <!-- ── Sidebar ── -->
-  <aside class="w-72 bg-slate-950 text-white flex flex-col shrink-0">
+  <aside id="sidebar" class="w-72 bg-slate-950 text-white flex flex-col shrink-0">
     <div class="p-8 pb-4">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/40">
@@ -33,8 +58,8 @@
           </svg>
         </div>
         <div>
-          <h1 class="text-lg font-black">AI SCM <span class="text-blue-500">v3.1</span></h1>
-          <p class="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em] mt-0.5">Intelligence Core</p>
+          <h1 class="text-lg font-black">AI智慧供應平台</h1>
+          <p class="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em] mt-0.5">Supply Chain Intelligence</p>
         </div>
       </div>
     </div>
@@ -92,63 +117,92 @@
 
   <!-- ── Main ── -->
   <main class="flex-1 flex flex-col min-w-0 overflow-hidden">
-    <header class="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-10 shrink-0 z-10">
-      <h2 id="page-title" class="text-xl font-black text-slate-900 uppercase tracking-tight">Risk Alert Center</h2>
-      <div class="flex items-center gap-4">
-        <div class="relative">
+    <header class="h-14 md:h-20 bg-white border-b border-slate-200 flex items-center justify-between px-4 md:px-10 shrink-0 z-10 gap-3">
+      <!-- 漢堡選單 (mobile) -->
+      <button onclick="toggleSidebar()" class="md:hidden p-2 rounded-xl hover:bg-slate-100 transition-all shrink-0">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <h2 id="page-title" class="text-sm md:text-xl font-black text-slate-900 uppercase tracking-tight flex-1 truncate">Risk Alert Center</h2>
+      <div class="flex items-center gap-2 md:gap-4 shrink-0">
+        <div class="relative hidden sm:block">
           <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
           </svg>
-          <input type="text" placeholder="搜尋工單或料號..."
-            class="pl-10 pr-4 py-2.5 bg-slate-100 rounded-xl text-sm font-medium w-60 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+          <input id="global-search" type="text" placeholder="搜尋新聞、工單、料號..."
+            oninput="globalSearch(this.value)"
+            class="pl-10 pr-4 py-2 bg-slate-100 rounded-xl text-sm font-medium w-44 md:w-60 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
         </div>
-        <button class="relative p-2.5 bg-slate-100 rounded-xl hover:bg-slate-200 transition-all">
-          <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
-          </svg>
-          <span class="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
-        </button>
+        <div class="relative">
+          <button id="notif-btn" onclick="toggleNotifPanel()" class="relative p-2.5 bg-slate-100 rounded-xl hover:bg-slate-200 transition-all">
+            <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+            </svg>
+            <span id="notif-badge" class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full text-white text-[9px] font-black flex items-center justify-center px-1"></span>
+          </button>
+          <div id="notif-panel" class="hidden absolute top-12 right-0 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <p class="text-sm font-black text-slate-900">通知中心</p>
+              <button onclick="clearNotifications()" class="text-xs text-slate-400 hover:text-red-500 font-bold transition-all">清除全部</button>
+            </div>
+            <div id="notif-list" class="max-h-72 overflow-y-auto custom-scrollbar">
+              <p class="text-slate-400 text-xs font-bold text-center py-6">目前無通知</p>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
 
     <!-- Page 1: Risks -->
-    <div id="page-risks" class="page active flex-1 overflow-y-auto p-10 custom-scrollbar">
-      <div class="grid grid-cols-4 gap-5 mb-8">
+    <div id="page-risks" class="page active flex-1 overflow-y-auto p-4 sm:p-6 md:p-10 custom-scrollbar">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5 mb-6 md:mb-8">
         <div id="stat-all" onclick="filterNews('all')" class="stat-card bg-white p-6 rounded-2xl border-2 shadow-sm flex justify-between items-center cursor-pointer hover:shadow-md transition-all" style="border-color:#3b82f6">
-          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">即時新聞</p><h3 id="news-total" class="text-4xl font-black text-slate-900 mt-1">--</h3></div>
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">即時新聞</p><h3 id="news-total" class="text-2xl md:text-4xl font-black text-slate-900 mt-1">--</h3></div>
           <div class="p-3 bg-slate-100 text-slate-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg></div>
         </div>
         <div id="stat-high" onclick="filterNews('high')" class="stat-card bg-white p-6 rounded-2xl border-2 border-transparent shadow-sm flex justify-between items-center cursor-pointer hover:shadow-md transition-all">
-          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">高風險 &gt; 80</p><h3 id="news-high" class="text-4xl font-black text-red-600 mt-1">--</h3></div>
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">高風險 &gt; 80</p><h3 id="news-high" class="text-2xl md:text-4xl font-black text-red-600 mt-1">--</h3></div>
           <div class="p-3 bg-red-50 text-red-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg></div>
         </div>
         <div id="stat-med" onclick="filterNews('medium')" class="stat-card bg-white p-6 rounded-2xl border-2 border-transparent shadow-sm flex justify-between items-center cursor-pointer hover:shadow-md transition-all">
-          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">警戒 50–80</p><h3 id="news-med" class="text-4xl font-black text-amber-500 mt-1">--</h3></div>
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">警戒 50–80</p><h3 id="news-med" class="text-2xl md:text-4xl font-black text-amber-500 mt-1">--</h3></div>
           <div class="p-3 bg-amber-50 text-amber-500 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/></svg></div>
         </div>
         <div id="stat-low" onclick="filterNews('low')" class="stat-card bg-white p-6 rounded-2xl border-2 border-transparent shadow-sm flex justify-between items-center cursor-pointer hover:shadow-md transition-all">
-          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">觀察 &lt; 50</p><h3 id="news-low" class="text-4xl font-black text-green-600 mt-1">--</h3></div>
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">觀察 &lt; 50</p><h3 id="news-low" class="text-2xl md:text-4xl font-black text-green-600 mt-1">--</h3></div>
           <div class="p-3 bg-green-50 text-green-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div>
         </div>
       </div>
-      <div class="flex justify-between items-center mb-6">
+      <div class="flex flex-wrap gap-3 justify-between items-start mb-4 md:mb-6">
         <div>
-          <h3 class="text-lg font-black text-slate-900">外部風險即時監測 (RSS Live)</h3>
-          <p class="text-xs text-slate-500 font-medium mt-0.5">即時監測全球供應鏈風險新聞，點擊上方數字可篩選風險等級</p>
+          <h3 class="text-base md:text-lg font-black text-slate-900">外部風險即時監測 (RSS Live)</h3>
+          <p class="text-xs text-slate-500 font-medium mt-0.5 hidden sm:block">即時監測全球供應鏈風險新聞，點擊上方數字可篩選風險等級</p>
         </div>
-        <button onclick="openNewsPanel()" class="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-900/20">
+        <button onclick="openNewsPanel()" class="flex items-center gap-2 px-4 py-2 md:px-5 md:py-2.5 bg-blue-600 text-white rounded-xl font-bold text-xs hover:bg-blue-700 transition-all shadow-lg shadow-blue-900/20 shrink-0">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
           抓取最新新聞
         </button>
       </div>
-      <div id="risk-container" class="grid grid-cols-2 gap-7"></div>
+      <div id="risk-container" class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-7"></div>
+      <div id="news-pagination" class="hidden flex items-center justify-center gap-4 mt-8 pb-2">
+        <button onclick="changePage(-1)" id="page-prev"
+          class="px-5 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+          ← 上一頁
+        </button>
+        <span id="page-info" class="text-sm font-bold text-slate-400 font-mono"></span>
+        <button onclick="changePage(1)" id="page-next"
+          class="px-5 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+          下一頁 →
+        </button>
+      </div>
     </div>
 
     <!-- Page 2: Orders -->
-    <div id="page-orders" class="page flex-1 overflow-y-auto p-10 custom-scrollbar">
-      <div class="grid grid-cols-4 gap-5 mb-8">
+    <div id="page-orders" class="page flex-1 overflow-y-auto p-4 sm:p-6 md:p-10 custom-scrollbar">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5 mb-6 md:mb-8">
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
-          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">總工單數</p><h3 id="order-total" class="text-4xl font-black text-slate-900 mt-1">--</h3></div>
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">總工單數</p><h3 id="order-total" class="text-2xl md:text-4xl font-black text-slate-900 mt-1">--</h3></div>
           <div class="p-3 bg-blue-50 text-blue-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"/><path d="M3 6h18"/><path d="M16 10a4 4 0 0 1-8 0"/></svg></div>
         </div>
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -156,7 +210,7 @@
           <div id="country-dist" class="flex gap-2 flex-wrap"></div>
         </div>
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
-          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">高風險工單</p><h3 id="order-risk" class="text-4xl font-black text-red-600 mt-1">--</h3></div>
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">高風險工單</p><h3 id="order-risk" class="text-2xl md:text-4xl font-black text-red-600 mt-1">--</h3></div>
           <div class="p-3 bg-red-50 text-red-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg></div>
         </div>
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
@@ -164,7 +218,7 @@
           <div class="p-3 bg-green-50 text-green-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2Z"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>
         </div>
       </div>
-      <div class="flex gap-2 mb-6">
+      <div class="flex gap-2 mb-4 md:mb-6 flex-wrap">
         <button onclick="filterOrders('all')" id="filter-all" class="country-filter active-filter px-4 py-2 rounded-xl font-bold text-xs">全部</button>
         <button onclick="filterOrders('NE')" id="filter-NE" class="country-filter inactive-filter px-4 py-2 rounded-xl font-bold text-xs">🇳🇱 NE</button>
         <button onclick="filterOrders('PT')" id="filter-PT" class="country-filter inactive-filter px-4 py-2 rounded-xl font-bold text-xs">🇵🇹 PT</button>
@@ -180,8 +234,8 @@
     </div>
 
     <!-- Page 3: BOM -->
-    <div id="page-bom" class="page flex-1 overflow-y-auto p-10 custom-scrollbar">
-      <div class="flex gap-3 mb-8 items-end">
+    <div id="page-bom" class="page flex-1 overflow-y-auto p-4 sm:p-6 md:p-10 custom-scrollbar">
+      <div class="flex gap-3 mb-6 md:mb-8 items-end flex-wrap">
         <div class="flex-1">
           <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">機種料號 (SKU)</label>
           <input id="sku-input" type="text" placeholder="輸入 SKU 料號篩選，留空顯示全部..."
@@ -196,18 +250,18 @@
     </div>
 
     <!-- Page 4: Review -->
-    <div id="page-review" class="page flex-1 overflow-y-auto p-10 custom-scrollbar">
-      <div class="grid grid-cols-4 gap-5 mb-8">
+    <div id="page-review" class="page flex-1 overflow-y-auto p-4 sm:p-6 md:p-10 custom-scrollbar">
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5 mb-6 md:mb-8">
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
-          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">待審核</p><h3 id="act-pending" class="text-4xl font-black text-amber-500 mt-1">--</h3></div>
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">待審核</p><h3 id="act-pending" class="text-2xl md:text-4xl font-black text-amber-500 mt-1">--</h3></div>
           <div class="p-3 bg-amber-50 text-amber-500 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
         </div>
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
-          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">已核准</p><h3 id="act-approved" class="text-4xl font-black text-green-600 mt-1">--</h3></div>
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">已核准</p><h3 id="act-approved" class="text-2xl md:text-4xl font-black text-green-600 mt-1">--</h3></div>
           <div class="p-3 bg-green-50 text-green-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></div>
         </div>
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
-          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">已駁回</p><h3 id="act-rejected" class="text-4xl font-black text-red-600 mt-1">--</h3></div>
+          <div><p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">已駁回</p><h3 id="act-rejected" class="text-2xl md:text-4xl font-black text-red-600 mt-1">--</h3></div>
           <div class="p-3 bg-red-50 text-red-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></div>
         </div>
         <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex justify-between items-center">
@@ -215,8 +269,8 @@
           <div class="p-3 bg-blue-50 text-blue-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
         </div>
       </div>
-      <div class="flex justify-between items-center mb-6">
-        <h3 class="text-lg font-black text-slate-900">決策審核清單</h3>
+      <div class="flex justify-between items-center mb-4 md:mb-6">
+        <h3 class="text-base md:text-lg font-black text-slate-900">決策審核清單</h3>
         <button onclick="fetchActions()" class="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
           刷新
@@ -227,8 +281,8 @@
   </main>
 
   <!-- ── Reject Modal ── -->
-  <div id="reject-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
-    <div class="bg-white rounded-3xl p-8 w-[480px] shadow-2xl">
+  <div id="reject-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-3xl p-6 md:p-8 w-full max-w-[480px] shadow-2xl">
       <h3 class="text-xl font-black text-slate-900 mb-1">駁回決策</h3>
       <p class="text-sm text-slate-500 mb-5">駁回原因將回饋至 AI 模型進行邏輯優化。</p>
       <textarea id="reject-reason" rows="4" placeholder="請詳細說明駁回原因..."
@@ -263,7 +317,7 @@
   <!-- ── News Panel ── -->
   <div id="news-panel" class="hidden fixed inset-0 z-50 flex justify-end">
     <div class="absolute inset-0 bg-black/40" onclick="closeNewsPanel()"></div>
-    <div class="relative w-[560px] bg-white h-full flex flex-col shadow-2xl">
+    <div class="relative w-full sm:w-[560px] bg-white h-full flex flex-col shadow-2xl">
       <div class="px-8 py-6 border-b border-slate-100 flex items-center justify-between shrink-0">
         <div>
           <h3 class="text-lg font-black text-slate-900">最新供應鏈新聞</h3>
@@ -279,15 +333,75 @@
     </div>
   </div>
 
+  <!-- ── Procurement Notify Modal ── -->
+  <div id="notify-modal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6">
+    <div class="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div class="px-8 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+        <div>
+          <p class="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-1">採購通知</p>
+          <h3 class="text-lg font-black text-slate-900">通知採購中心</h3>
+        </div>
+        <button onclick="document.getElementById('notify-modal').classList.add('hidden')" class="p-2 hover:bg-slate-100 rounded-xl text-slate-400">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
+      </div>
+      <div class="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 custom-scrollbar">
+        <div>
+          <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">收件人</label>
+          <input id="notify-to" type="text" value="procurement@company.com; pm-team@company.com"
+            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+        </div>
+        <div>
+          <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">主旨</label>
+          <input id="notify-subject" type="text"
+            class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+        </div>
+        <div>
+          <label class="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">信件內容</label>
+          <textarea id="notify-body" rows="10"
+            class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-mono"></textarea>
+        </div>
+      </div>
+      <div class="px-8 py-5 border-t border-slate-100 bg-slate-50/50 flex gap-3 justify-end shrink-0">
+        <button onclick="downloadProcDocFromNotify()" class="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl font-black text-sm hover:bg-slate-50 transition-all">
+          ⬇ 下載採購請求單
+        </button>
+        <button id="copy-email-btn" onclick="copyNotifyEmail()" class="px-5 py-2.5 bg-slate-900 text-white rounded-xl font-black text-sm hover:bg-blue-600 transition-all">
+          複製信件
+        </button>
+        <button onclick="document.getElementById('notify-modal').classList.add('hidden')" class="px-5 py-2.5 bg-blue-600 text-white rounded-xl font-black text-sm hover:bg-blue-700 transition-all">
+          關閉
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const API = window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost'
       ? 'http://127.0.0.1:8000' : '';
     let allOrders = [];
+    let allActions = [];
+    let allBom = [];
+    let currentNotifyAction = null;
     let rejectPageId = null;
+    let currentPageName = 'risks';
 
     const TITLES = { risks:'Risk Alert Center', orders:'Demand Management', bom:'BOM Structure Browser', review:'Decision Review Center' };
 
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('open');
+      document.getElementById('sidebar-overlay').classList.toggle('open');
+    }
+    function closeSidebar() {
+      document.getElementById('sidebar').classList.remove('open');
+      document.getElementById('sidebar-overlay').classList.remove('open');
+    }
+
     function switchPage(name) {
+      currentPageName = name;
+      closeSidebar();
+      const gs = document.getElementById('global-search');
+      if (gs) gs.value = '';
       document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
       document.getElementById(`page-${name}`).classList.add('active');
       document.getElementById('page-title').innerText = TITLES[name];
@@ -301,32 +415,384 @@
       if (name === 'review') fetchActions();
     }
 
+    function globalSearch(q) {
+      const t = q.trim().toLowerCase();
+      if (currentPageName === 'risks') {
+        const list = t ? allNews.filter(n =>
+          (n.title||'').toLowerCase().includes(t) ||
+          (n.description||'').toLowerCase().includes(t)
+        ) : allNews;
+        renderNewsCards(_sortNews(list));
+      } else if (currentPageName === 'orders') {
+        const list = t ? allOrders.filter(o =>
+          (o.order_id||'').toLowerCase().includes(t) ||
+          (o.sku_pn||'').toLowerCase().includes(t) ||
+          (o.country||'').toLowerCase().includes(t)
+        ) : allOrders;
+        renderOrders(list);
+      } else if (currentPageName === 'bom') {
+        const list = t ? allBom.filter(b =>
+          (b.gbt_pn||'').toLowerCase().includes(t) ||
+          (b.sku_pn||'').toLowerCase().includes(t) ||
+          (b.vendor||'').toLowerCase().includes(t)
+        ) : allBom;
+        renderBom(list);
+      } else if (currentPageName === 'review') {
+        const list = t ? allActions.filter(a =>
+          (a.action_id||'').toLowerCase().includes(t) ||
+          (a.gbt_pn||'').toLowerCase().includes(t) ||
+          (a.vendor||'').toLowerCase().includes(t) ||
+          (a.trigger||'').toLowerCase().includes(t)
+        ) : allActions;
+        renderActionCards(list);
+      }
+    }
+
+    /* ── Notification System ── */
+    let notifications = [];
+    function addNotification(msg, level = 'info') {
+      const ts = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
+      notifications.unshift({ msg, level, ts, read: false });
+      if (notifications.length > 30) notifications.pop();
+      const unread = notifications.filter(n => !n.read).length;
+      const badge = document.getElementById('notif-badge');
+      badge.innerText = unread > 9 ? '9+' : unread;
+      badge.classList.remove('hidden');
+    }
+    function toggleNotifPanel() {
+      const panel = document.getElementById('notif-panel');
+      const isOpen = !panel.classList.contains('hidden');
+      if (isOpen) { panel.classList.add('hidden'); return; }
+      notifications.forEach(n => n.read = true);
+      document.getElementById('notif-badge').classList.add('hidden');
+      renderNotifPanel();
+      panel.classList.remove('hidden');
+    }
+    document.addEventListener('click', e => {
+      const panel = document.getElementById('notif-panel');
+      const btn   = document.getElementById('notif-btn');
+      if (!panel.classList.contains('hidden') && !panel.contains(e.target) && !btn.contains(e.target))
+        panel.classList.add('hidden');
+    });
+    function renderNotifPanel() {
+      const box = document.getElementById('notif-list');
+      if (!notifications.length) {
+        box.innerHTML = '<p class="text-slate-400 text-xs font-bold text-center py-6">目前無通知</p>';
+        return;
+      }
+      const COLOR = { info:'bg-blue-400', warn:'bg-amber-400', danger:'bg-red-500', success:'bg-green-500' };
+      box.innerHTML = notifications.map(n => `
+        <div class="flex gap-3 px-4 py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-all">
+          <div class="w-2 h-2 mt-1.5 rounded-full ${COLOR[n.level]||'bg-blue-400'} shrink-0"></div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs text-slate-700 font-medium leading-snug">${n.msg}</p>
+            <p class="text-[10px] text-slate-400 font-mono mt-0.5">${n.ts}</p>
+          </div>
+        </div>`).join('');
+    }
+    function clearNotifications() {
+      notifications = [];
+      renderNotifPanel();
+      document.getElementById('notif-badge').classList.add('hidden');
+    }
+
+    /* ── Review Time Formatter ── */
+    function formatReviewTime(isoStr) {
+      if (!isoStr) return '';
+      const dt = new Date(isoStr);
+      if (isNaN(dt.getTime())) return '';
+      const y  = dt.getFullYear();
+      const mo = String(dt.getMonth()+1).padStart(2,'0');
+      const d  = String(dt.getDate()).padStart(2,'0');
+      const h  = String(dt.getHours()).padStart(2,'0');
+      const mi = String(dt.getMinutes()).padStart(2,'0');
+      return `${y}/${mo}/${d} ${h}:${mi}`;
+    }
+
+    /* ── Procurement Notification & Document ── */
+    function openNotifyModal(pageId) {
+      const act = allActions.find(a => a.page_id === pageId || a.action_id === pageId);
+      if (!act) return;
+      currentNotifyAction = act;
+      const today = new Date().toLocaleDateString('zh-TW');
+      document.getElementById('notify-subject').value =
+        `[採購請求] ${act.action_id} — ${act.gbt_pn} 緊急備料通知`;
+      document.getElementById('notify-body').value =
+`採購中心 / PM Team，您好：
+
+依據 AI 供應鏈風險預警系統評估結果，決策 ${act.action_id} 已完成審核核准。
+請依下列資訊安排採購作業：
+
+【採購零件】
+  料號：${act.gbt_pn || '--'}
+  供應商：${act.vendor || '--'}
+  建議補貨量：${(act.suggested_qty||0).toLocaleString()} pcs
+  單價 (USD)：$${(act.unit_price||0).toLocaleString()}
+  估算金額：$${(act.total_cost||0).toLocaleString('en-US',{maximumFractionDigits:0})}
+
+【衝擊鏈摘要】
+  受影響 SKU：${(act.affected_skus||[]).join(', ') || '—'}
+  受影響工單：${(act.affected_orders||[]).join(', ') || '—'}
+  受影響總量：${(act.affected_qty||0).toLocaleString()} pcs
+
+【採購請求單】請見附件或點選系統內下載。
+
+此致
+AI智慧供應平台 自動通知
+${today}`;
+      document.getElementById('notify-modal').classList.remove('hidden');
+    }
+
+    function copyNotifyEmail() {
+      const subject = document.getElementById('notify-subject').value;
+      const body    = document.getElementById('notify-body').value;
+      const text    = `主旨：${subject}\n\n${body}`;
+      const btn     = document.getElementById('copy-email-btn');
+
+      function onSuccess() {
+        if (btn) { btn.innerText = '✓ 已複製'; setTimeout(() => { btn.innerText = '複製信件'; }, 1500); }
+      }
+
+      // clipboard API requires HTTPS; fall back to execCommand for HTTP
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(onSuccess).catch(() => _execCopy(text, onSuccess));
+      } else {
+        _execCopy(text, onSuccess);
+      }
+    }
+
+    function _execCopy(text, onSuccess) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        document.execCommand('copy');
+        onSuccess?.();
+      } catch {
+        alert('複製失敗，請手動選取信件內容複製。');
+      }
+      document.body.removeChild(ta);
+    }
+
+    function downloadProcDoc(actionId) {
+      const act = allActions.find(a => a.action_id === actionId);
+      if (!act) return;
+      _generateProcDocBlob(act);
+    }
+    function downloadProcDocFromNotify() {
+      if (currentNotifyAction) _generateProcDocBlob(currentNotifyAction);
+    }
+    function _generateProcDocBlob(act) {
+      const today   = new Date().toLocaleDateString('zh-TW');
+      const now     = new Date().toLocaleString('zh-TW');
+      const docNo   = act.action_id;
+      const skuList = (act.affected_skus||[]).join('、') || '—';
+      const ordList = (act.affected_orders||[]).join('、') || '—';
+      const html = `<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>採購請求單 ${docNo}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'PingFang TC', 'Noto Sans TC', Arial, sans-serif; color: #1e293b; padding: 48px; max-width: 860px; margin: auto; }
+  header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px; border-bottom: 3px solid #2563eb; padding-bottom: 16px; }
+  h1 { font-size: 24px; font-weight: 900; color: #1e293b; }
+  .subtitle { font-size: 11px; color: #94a3b8; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+  .meta { font-size: 12px; color: #475569; text-align: right; }
+  .meta span { display: block; }
+  section { margin-bottom: 28px; }
+  h2 { font-size: 11px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 10px; }
+  .reason-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; padding: 14px 18px; font-size: 13px; color: #1e3a8a; line-height: 1.6; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #f8fafc; text-align: left; padding: 10px 14px; border-bottom: 2px solid #e2e8f0; font-weight: 900; color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+  td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; }
+  tr:last-child td { border-bottom: none; }
+  .total-row td { font-weight: 900; background: #f8fafc; color: #2563eb; }
+  .tag { display: inline-block; background: #f1f5f9; border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 700; color: #475569; margin: 2px 2px 2px 0; }
+  .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .info-item label { font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8; display: block; margin-bottom: 4px; }
+  .info-item p { font-size: 13px; font-weight: 600; color: #1e293b; }
+  footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e2e8f0; font-size: 11px; color: #94a3b8; display: flex; justify-content: space-between; }
+  @media print { body { padding: 24px; } }
+</style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="subtitle">AI智慧供應平台</div>
+      <h1>採購請求單</h1>
+    </div>
+    <div class="meta">
+      <span><strong>文件編號：</strong>${docNo}</span>
+      <span><strong>建立日期：</strong>${today}</span>
+      <span><strong>狀態：</strong>${act.status}</span>
+    </div>
+  </header>
+
+  <section>
+    <h2>採購原因</h2>
+    <div class="reason-box">
+      依據 AI 供應鏈風險預警系統評估，偵測到影響關鍵零件 <strong>${act.gbt_pn}</strong> 之供應鏈風險事件。
+      為降低斷料風險、維持工單正常出貨，建議提前執行安全庫存補充。
+      ${act.affected_qty ? `本次採購預計覆蓋受影響工單共 <strong>${act.affected_qty.toLocaleString()} pcs</strong> 需求量。` : ''}
+    </div>
+  </section>
+
+  <section>
+    <h2>採購明細</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>項次</th><th>料號 (GBT_PN)</th><th>供應商</th>
+          <th>建議補貨量</th><th>單價 (USD)</th><th>小計 (USD)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td><strong>${act.gbt_pn || '--'}</strong></td>
+          <td>${act.vendor || '--'}</td>
+          <td>${(act.suggested_qty||0).toLocaleString()} pcs</td>
+          <td>$${(act.unit_price||0).toLocaleString()}</td>
+          <td>$${(act.total_cost||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        </tr>
+        <tr class="total-row">
+          <td colspan="5" style="text-align:right">合計</td>
+          <td>$${(act.total_cost||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>衝擊鏈分析</h2>
+    <div class="info-grid">
+      <div class="info-item">
+        <label>受影響機種 (SKU)</label>
+        <p>${(act.affected_skus||[]).map(s=>`<span class="tag">${s}</span>`).join('')||'—'}</p>
+      </div>
+      <div class="info-item">
+        <label>受影響工單</label>
+        <p>${(act.affected_orders||[]).map(o=>`<span class="tag">${o}</span>`).join('')||'—'}</p>
+      </div>
+      <div class="info-item">
+        <label>受影響總需求量</label>
+        <p>${(act.affected_qty||0).toLocaleString()} pcs</p>
+      </div>
+      <div class="info-item">
+        <label>審核狀態</label>
+        <p>${act.status}${act.review_time ? ' · ' + formatReviewTime(act.review_time) : ''}</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>由 AI智慧供應平台 自動產出</span>
+    <span>產出時間：${now}</span>
+  </footer>
+</body>
+</html>`;
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url;
+      a.download = `採購請求單_${docNo}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function formatNewsDate(pubDateStr) {
+      if (!pubDateStr) return { abs: '', rel: '', urgency: '', urgencyClass: '' };
+      const dt = new Date(pubDateStr);
+      if (isNaN(dt.getTime())) return { abs: '', rel: '', urgency: '', urgencyClass: '' };
+      const now = new Date();
+      const diffMs = now - dt;
+      const diffH = diffMs / 3600000;
+      const diffD = diffH / 24;
+      const mm = String(dt.getMonth()+1).padStart(2,'0');
+      const dd = String(dt.getDate()).padStart(2,'0');
+      const hh = String(dt.getHours()).padStart(2,'0');
+      const mi = String(dt.getMinutes()).padStart(2,'0');
+      const abs = `${mm}/${dd} ${hh}:${mi}`;
+      let rel;
+      if (diffH < 1) rel = `${Math.max(1, Math.round(diffMs/60000))} 分鐘前`;
+      else if (diffH < 24) rel = `${Math.round(diffH)} 小時前`;
+      else if (diffD < 7) rel = `${Math.round(diffD)} 天前`;
+      else rel = `${Math.round(diffD/7)} 週前`;
+      let urgency, urgencyClass;
+      if (diffH < 6)       { urgency = '突發'; urgencyClass = 'bg-red-500 text-white'; }
+      else if (diffH < 24) { urgency = '今日'; urgencyClass = 'bg-amber-500 text-white'; }
+      else if (diffD < 3)  { urgency = '近期'; urgencyClass = 'bg-blue-500 text-white'; }
+      else if (diffD < 7)  { urgency = '本週'; urgencyClass = 'bg-slate-500 text-white'; }
+      else                 { urgency = '上週'; urgencyClass = 'bg-slate-300 text-slate-600'; }
+      return { abs, rel, urgency, urgencyClass };
+    }
+
     /* ── News Feed (主畫面) ── */
     let allNews = [];
     let currentFilter = 'all';
+    let currentList   = [];
+    let currentPage   = 1;
+    const PAGE_SIZE   = 6;
 
     const FILTER_COLORS = { all:'#3b82f6', high:'#dc2626', medium:'#f59e0b', low:'#16a34a' };
-    const STAT_IDS = { all:'stat-all', high:'stat-high', medium:'stat-med', low:'stat-low' };
+    const STAT_IDS      = { all:'stat-all', high:'stat-high', medium:'stat-med', low:'stat-low' };
+
+    function updateStats() {
+      document.getElementById('news-total').innerText = allNews.length;
+      document.getElementById('news-high').innerText  = allNews.filter(n => n.suggested_score > 0.8).length;
+      document.getElementById('news-med').innerText   = allNews.filter(n => n.suggested_score > 0.5 && n.suggested_score <= 0.8).length;
+      document.getElementById('news-low').innerText   = allNews.filter(n => n.suggested_score <= 0.5).length;
+    }
 
     async function fetchNewsFeed() {
       const box = document.getElementById('risk-container');
       box.innerHTML = '<p class="col-span-2 text-slate-400 text-sm font-bold py-8 text-center">正在抓取即時新聞...</p>';
       try {
-        const { results } = await (await fetch(`${API}/api/news`)).json();
-        allNews = results || [];
-        document.getElementById('news-total').innerText = allNews.length;
-        document.getElementById('news-high').innerText  = allNews.filter(n => n.suggested_score > 0.8).length;
-        document.getElementById('news-med').innerText   = allNews.filter(n => n.suggested_score > 0.5 && n.suggested_score <= 0.8).length;
-        document.getElementById('news-low').innerText   = allNews.filter(n => n.suggested_score <= 0.5).length;
+        const resp = await (await fetch(`${API}/api/news`)).json();
+        allNews = resp.results || [];
+        updateStats();
         filterNews(currentFilter);
+        if (resp.cleaned > 0)
+          addNotification(`已自動移除 ${resp.cleaned} 筆逾兩週未處理新聞，風險庫保持更新。`, 'info');
+        const highRisk = allNews.filter(n => n.suggested_score > 0.8);
+        if (highRisk.length)
+          addNotification(`偵測到 ${highRisk.length} 則高風險新聞，建議立即評估衝擊。`, 'danger');
       } catch(e) {
         box.innerHTML = `<p class="col-span-2 text-red-500 font-bold text-sm py-8 text-center">連線失敗：${e.message}</p>`;
       }
     }
 
+    function _urgencyRank(pubDateStr) {
+      if (!pubDateStr) return 9;
+      const dt = new Date(pubDateStr);
+      if (isNaN(dt.getTime())) return 9;
+      const h = (Date.now() - dt.getTime()) / 3600000;
+      if (h < 6)   return 0; // 突發
+      if (h < 24)  return 1; // 今日
+      if (h < 72)  return 2; // 近期
+      if (h < 168) return 3; // 本週
+      return 4;              // 上週
+    }
+
+    function _sortNews(arr) {
+      return [...arr].sort((a, b) => {
+        const ra = _urgencyRank(a.pub_date), rb = _urgencyRank(b.pub_date);
+        if (ra !== rb) return ra - rb;
+        const da = a.pub_date ? new Date(a.pub_date).getTime() : 0;
+        const db = b.pub_date ? new Date(b.pub_date).getTime() : 0;
+        return db - da;
+      });
+    }
+
     function filterNews(level) {
       currentFilter = level;
-      // reset all stat card borders
       document.querySelectorAll('.stat-card').forEach(c => { c.style.borderColor = 'transparent'; });
       const card = document.getElementById(STAT_IDS[level]);
       if (card) card.style.borderColor = FILTER_COLORS[level];
@@ -334,30 +800,50 @@
       if (level === 'high')   list = allNews.filter(n => n.suggested_score > 0.8);
       if (level === 'medium') list = allNews.filter(n => n.suggested_score > 0.5 && n.suggested_score <= 0.8);
       if (level === 'low')    list = allNews.filter(n => n.suggested_score <= 0.5);
-      renderNewsCards(list);
+      renderNewsCards(_sortNews(list));
     }
 
     let currentRenderedNews = [];
 
     function renderNewsCards(list) {
       currentRenderedNews = list;
+      currentList = list;
+      currentPage = 1;
+      renderPage();
+    }
+
+    function renderPage() {
+      const total      = currentList.length;
+      const totalPages = Math.ceil(total / PAGE_SIZE);
+      const start      = (currentPage - 1) * PAGE_SIZE;
+      const pageItems  = currentList.slice(start, start + PAGE_SIZE);
       const box = document.getElementById('risk-container');
-      if (!list.length) {
+
+      if (!total) {
         box.innerHTML = '<p class="col-span-2 text-slate-400 text-sm font-bold py-8 text-center">沒有符合條件的新聞</p>';
+        document.getElementById('news-pagination').classList.add('hidden');
         return;
       }
-      box.innerHTML = list.map((n, i) => {
+
+      box.innerHTML = pageItems.map((n, i) => {
+        const globalIdx = start + i;
         const sc     = Math.round((n.suggested_score || 0) * 100);
         const hi     = n.suggested_score > 0.8, md = n.suggested_score > 0.5;
         const col    = hi ? 'bg-red-600' : md ? 'bg-amber-500' : 'bg-blue-600';
         const catCls = CAT_CLS[n.suggested_category] || CAT_CLS['新聞'];
-        const dateStr = n.pub_date ? n.pub_date.replace(/\s*\+\d{4}$/, '').replace('GMT','').trim().slice(0,22) : '';
+        const { abs: dateAbs, rel: dateRel, urgency, urgencyClass } = formatNewsDate(n.pub_date);
+        const autoTag = n._auto ? `<span class="px-2 py-0.5 bg-green-50 text-green-600 border border-green-100 rounded text-[9px] font-black">自動納入</span>` : '';
+        const urgencyTag = urgency ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-black ${urgencyClass}">${urgency}</span>` : '';
         return `
           <div class="bg-white p-7 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-xl transition-all flex flex-col">
-            <div class="flex items-center gap-2 mb-4">
+            <div class="flex items-center gap-2 mb-4 flex-wrap">
               <span class="px-2.5 py-1 rounded-lg text-[10px] font-black border ${catCls}">${n.suggested_category}</span>
               <span class="text-[10px] text-slate-400 font-bold">${n.source}</span>
-              <span class="ml-auto text-[10px] text-slate-300 font-mono">${dateStr}</span>
+              ${autoTag}
+              <div class="ml-auto flex items-center gap-1.5">
+                ${urgencyTag}
+                <span class="text-[10px] text-slate-400 font-mono" title="${dateAbs}">${dateRel || dateAbs}</span>
+              </div>
             </div>
             <div class="flex items-start gap-4 mb-4">
               <div class="w-14 h-14 rounded-xl flex flex-col items-center justify-center ${col} text-white shadow-lg shrink-0">
@@ -371,7 +857,7 @@
               <div class="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                 <div class="h-full ${col} rounded-full" style="width:${sc}%"></div>
               </div>
-              <button onclick="evaluateNews(${i})"
+              <button onclick="evaluateNews(${globalIdx})"
                 class="ml-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-black text-[11px] hover:bg-blue-700 transition-all shrink-0 shadow-md shadow-blue-900/20">
                 🔍 AI 評估
               </button>
@@ -379,6 +865,24 @@
             </div>
           </div>`;
       }).join('');
+
+      // pagination controls
+      const pg = document.getElementById('news-pagination');
+      if (totalPages > 1) {
+        pg.classList.remove('hidden');
+        document.getElementById('page-info').innerText = `第 ${currentPage} / ${totalPages} 頁`;
+        document.getElementById('page-prev').disabled = currentPage <= 1;
+        document.getElementById('page-next').disabled = currentPage >= totalPages;
+      } else {
+        pg.classList.add('hidden');
+      }
+    }
+
+    function changePage(delta) {
+      const totalPages = Math.ceil(currentList.length / PAGE_SIZE);
+      currentPage = Math.max(1, Math.min(currentPage + delta, totalPages));
+      renderPage();
+      document.getElementById('page-risks').scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     /* ── News Panel ── */
@@ -391,26 +895,92 @@
       '新聞':'bg-slate-50 text-slate-500 border-slate-200',
     };
 
+    const FEED_NAMES = [
+      // 國際供應鏈
+      '半導體供應鏈', '原物料漲價', '地緣政治風險', 'Reuters Tech', 'Yahoo 半導體', 'Yahoo 供應鏈',
+      // 台灣綜合
+      '聯合新聞網', '中時新聞網', 'Yahoo奇摩新聞',
+      // 台灣財經
+      '自由財經', '經濟日報', '工商時報', '鉅亨網 Anue',
+      // 即時/新媒體
+      'ETtoday財經', '關鍵評論網',
+      // Google 聚合
+      'Google 台灣財經',
+    ];
+
     async function openNewsPanel() {
       document.getElementById('news-panel').classList.remove('hidden');
       const box = document.getElementById('news-list');
-      box.innerHTML = `<div class="text-center py-12">
-        <div class="inline-block w-8 h-8 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-3"></div>
-        <p class="text-slate-400 text-sm font-bold">正在抓取最新新聞...</p>
-      </div>`;
-      try {
-        const { results } = await (await fetch(`${API}/api/news`)).json();
-        // 過濾掉主畫面已顯示的新聞（以標題前30字比對）
-        const shown = new Set(allNews.map(n => n.title.trim().slice(0, 30).toLowerCase()));
-        const fresh = results.filter(n => !shown.has(n.title.trim().slice(0, 30).toLowerCase()));
-        if (!fresh.length) {
-          box.innerHTML = '<p class="text-slate-400 text-sm font-bold text-center py-10">目前已是最新內容，沒有新增項目</p>';
-          return;
+
+      // 顯示所有 feed 的進度列
+      box.innerHTML = `
+        <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">正在逐一爬取新聞來源...</p>
+        ${FEED_NAMES.map((name, i) => `
+          <div id="feed-row-${i}" class="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 mb-2">
+            <div id="feed-icon-${i}" class="w-5 h-5 border-2 border-slate-200 border-t-slate-500 rounded-full animate-spin shrink-0"></div>
+            <span class="text-sm font-bold text-slate-600 flex-1">${name}</span>
+            <span id="feed-status-${i}" class="text-[10px] text-slate-400 font-mono">等待中...</span>
+          </div>`).join('')}
+        <div id="panel-results" class="mt-6 space-y-3"></div>`;
+
+      const shown = new Set(allNews.map(n => n.title.trim().slice(0, 30).toLowerCase()));
+      let allFresh = [], autoAdded = 0;
+
+      for (let i = 0; i < FEED_NAMES.length; i++) {
+        document.getElementById(`feed-status-${i}`).innerText = '爬取中...';
+        try {
+          const { results } = await (await fetch(`${API}/api/news?feed_idx=${i}`)).json();
+          const fresh = results.filter(n => !shown.has(n.title.trim().slice(0, 30).toLowerCase()));
+
+          // 與工單/料件有關（非泛新聞且分數 > 0.6）→ 自動納入主畫面
+          const auto = fresh.filter(n => n.suggested_category !== '新聞' && n.suggested_score > 0.6);
+          auto.forEach(n => { n._auto = true; shown.add(n.title.trim().slice(0, 30).toLowerCase()); });
+          if (auto.length) {
+            allNews = [...auto, ...allNews];
+            autoAdded += auto.length;
+          }
+
+          // 剩餘供手動加入
+          allFresh.push(...fresh.filter(n => !n._auto));
+
+          fresh.forEach(n => shown.add(n.title.trim().slice(0, 30).toLowerCase()));
+
+          // 更新進度
+          const icon = document.getElementById(`feed-icon-${i}`);
+          icon.className = 'w-5 h-5 flex items-center justify-center shrink-0 text-green-500 font-black text-sm';
+          icon.innerText = '✓';
+          document.getElementById(`feed-status-${i}`).innerText =
+            `${results.length} 則${auto.length ? `（${auto.length} 則已自動納入）` : ''}`;
+          document.getElementById(`feed-row-${i}`).className =
+            'flex items-center gap-3 p-3 bg-green-50 rounded-xl border border-green-100 mb-2';
+        } catch {
+          document.getElementById(`feed-icon-${i}`).innerText = '✗';
+          document.getElementById(`feed-status-${i}`).innerText = '爬取失敗';
         }
-        box.innerHTML = `<p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">找到 ${fresh.length} 則新新聞</p>` +
-          fresh.map((n, i) => {
-          const cls = CAT_CLS[n.suggested_category] || CAT_CLS['新聞'];
-          const score = Math.round((n.suggested_score||0.5) * 100);
+      }
+
+      // 若有自動納入，更新主畫面
+      if (autoAdded > 0) {
+        updateStats();
+        filterNews(currentFilter);
+        addNotification(`抓取新聞：自動納入 ${autoAdded} 則高關聯新聞到主畫面。`, 'info');
+      }
+
+      // 顯示剩餘供手動加入的新聞
+      const resultBox = document.getElementById('panel-results');
+      if (!allFresh.length) {
+        resultBox.innerHTML = `<p class="text-slate-400 text-sm font-bold text-center py-4">
+          ${autoAdded > 0 ? `已自動納入 ${autoAdded} 則相關新聞到主畫面` : '目前無新增新聞'}
+        </p>`;
+        return;
+      }
+      resultBox.innerHTML = `
+        <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">
+          其他 ${allFresh.length} 則 — 可手動存入風險資料庫
+        </p>` +
+        allFresh.map((n, i) => {
+          const cls   = CAT_CLS[n.suggested_category] || CAT_CLS['新聞'];
+          const score = Math.round((n.suggested_score || 0.5) * 100);
           return `
             <div class="bg-white border border-slate-200 rounded-2xl p-5 hover:shadow-md transition-all">
               <div class="flex items-center gap-2 mb-3">
@@ -419,22 +989,46 @@
                 <span class="ml-auto text-[10px] font-mono font-black text-slate-500">風險 ${score}</span>
               </div>
               <p class="text-sm font-bold text-slate-800 leading-snug mb-2">${n.title}</p>
-              <p class="text-xs text-slate-500 leading-relaxed mb-4">${n.description||''}</p>
-              <div class="flex gap-2 items-center">
-                <select id="cat-${i}" class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none">
-                  ${['新聞','供應','市場','政策','地緣','自然'].map(c=>`<option value="${c}" ${c===n.suggested_category?'selected':''}>${c}</option>`).join('')}
-                </select>
-                <input id="sc-${i}" type="number" min="0" max="1" step="0.05" value="${n.suggested_score||0.5}"
-                  class="w-20 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold focus:outline-none">
-                <button onclick="addNewsToRisk(${i},'${encodeURIComponent(n.title)}','${encodeURIComponent(n.description||'')}','${encodeURIComponent(n.source||'')}')"
-                  class="px-4 py-1.5 bg-blue-600 text-white rounded-lg font-black text-xs hover:bg-blue-700 transition-all whitespace-nowrap">
-                  + 存入資料庫
-                </button>
+              <p class="text-xs text-slate-500 leading-relaxed mb-3">${n.description || ''}</p>
+              <div class="space-y-2">
+                <div class="flex gap-2 items-center">
+                  <select id="cat-p${i}" onchange="updateSaveBtn(this,'p${i}')"
+                    class="flex-1 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold focus:outline-none">
+                    ${['新聞','供應','市場','政策','地緣','自然'].map(c=>`<option value="${c}" ${c===n.suggested_category?'selected':''}>${c}</option>`).join('')}
+                  </select>
+                  <input id="sc-p${i}" type="number" min="0" max="1" step="0.05" value="${n.suggested_score||0.5}"
+                    class="w-20 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold focus:outline-none">
+                  <button id="savebtn-p${i}"
+                    onclick="addNewsToRisk('p${i}','${encodeURIComponent(n.title)}','${encodeURIComponent(n.description||'')}','${encodeURIComponent(n.source||'')}')"
+                    class="${n.suggested_category!=='新聞'?'bg-green-600 hover:bg-green-700':'bg-slate-500 hover:bg-slate-600'} text-white px-4 py-1.5 rounded-lg font-black text-xs transition-all whitespace-nowrap">
+                    ${n.suggested_category!=='新聞'?'✓ 核准寫入風險庫':'暫存新聞'}
+                  </button>
+                </div>
+                <p id="savenote-p${i}" class="text-[10px] font-medium ${n.suggested_category!=='新聞'?'text-green-600':'text-slate-400'}">
+                  ${n.suggested_category!=='新聞'
+                    ?'此分類將強化 RAG 知識庫，提升未來 AI 評估準確度。'
+                    :'「新聞」為暫存分類，兩週後若未處理將自動從資料庫移除。'}
+                </p>
               </div>
             </div>`;
         }).join('');
-      } catch(e) {
-        box.innerHTML = `<p class="text-red-500 font-bold text-sm text-center py-8">抓取失敗：${e.message}</p>`;
+    }
+
+    function updateSaveBtn(select, idx) {
+      const isNews = select.value === '新聞';
+      const btn  = document.getElementById(`savebtn-${idx}`);
+      const note = document.getElementById(`savenote-${idx}`);
+      if (!btn) return;
+      btn.className = btn.className
+        .replace(/bg-\w+-\d+\s+hover:bg-\w+-\d+/g, '')
+        .trim();
+      btn.className += isNews ? ' bg-slate-500 hover:bg-slate-600' : ' bg-green-600 hover:bg-green-700';
+      btn.innerText = isNews ? '暫存新聞' : '✓ 核准寫入風險庫';
+      if (note) {
+        note.className = note.className.replace(/text-\w+-\d+/, isNews ? 'text-slate-400' : 'text-green-600');
+        note.innerText = isNews
+          ? '「新聞」為暫存分類，兩週後若未處理將自動從資料庫移除。'
+          : '此分類將強化 RAG 知識庫，提升未來 AI 評估準確度。';
       }
     }
 
@@ -456,14 +1050,19 @@
           body: JSON.stringify({ title, description: desc, category: cat, risk_score: score, source })
         });
         if (r.ok) {
-          btn.innerText = '✓ 已儲存';
-          btn.className = btn.className.replace('bg-blue-600 hover:bg-blue-700', 'bg-green-600');
+          btn.innerText = '✓ 已寫入';
+          btn.className = btn.className.replace(/bg-\w+-\d+(\s+hover:bg-\w+-\d+)?/, 'bg-green-600');
+          const cat = document.getElementById(`cat-${idx}`)?.value;
+          if (cat && cat !== '新聞')
+            addNotification(`新聞已核准存入風險庫（分類：${cat}），RAG 知識庫已更新。`, 'success');
+          else
+            addNotification('新聞已暫存，兩週後若未調整分類將自動移除。', 'info');
         } else {
-          btn.disabled = false; btn.innerText = '+ 存入資料庫';
+          btn.disabled = false; btn.innerText = '核准寫入風險庫';
           alert('儲存失敗：' + (await r.json()).detail);
         }
       } catch(e) {
-        btn.disabled = false; btn.innerText = '+ 存入資料庫';
+        btn.disabled = false; btn.innerText = '核准寫入風險庫';
       }
     }
 
@@ -507,28 +1106,58 @@
       const hi  = n.suggested_score > 0.8, md = n.suggested_score > 0.5;
       const col = hi ? 'bg-red-600' : md ? 'bg-amber-500' : 'bg-blue-600';
 
+      // 評分依據
+      const breakdown = (r.score_breakdown || []).join(' ＋ ');
+      const overallPct = Math.round((r.overall_score || 0) * 100);
+
       // RAG 知識庫
-      const ragHtml = r.matched_risks.length ? r.matched_risks.map(rk => `
-        <div class="flex gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-          <span class="font-mono text-[10px] font-black text-slate-400 shrink-0 pt-0.5 w-10">${rk.event_id}</span>
-          <p class="text-xs text-slate-600 font-medium leading-relaxed flex-1">${rk.description}</p>
-          <span class="text-[10px] font-black shrink-0 pt-0.5 ${rk.risk_score>0.8?'text-red-500':rk.risk_score>0.5?'text-amber-500':'text-blue-500'}">${Math.round(rk.risk_score*100)}</span>
-        </div>`).join('')
+      const ragqaCount = (r.matched_risks||[]).filter(rk => rk.is_ragqa).length;
+      const noRagqaWarn = (r.ragqa_total === 0)
+        ? `<div class="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-medium">
+             <span class="shrink-0 mt-0.5">⚠️</span>
+             <span>Notion 風險資料庫中尚無 <strong>RAGQA</strong> 分類條目。請在 Notion 中新增 Category = RAGQA 的知識條目，AI 大腦將更準確地評估新聞影響。</span>
+           </div>` : '';
+      const scoreColor = sc => sc > 80 ? '#ef4444' : sc > 50 ? '#f59e0b' : '#3b82f6';
+      const ragHtml = r.matched_risks.length
+        ? r.matched_risks.map(rk => {
+            const sc = Math.round((rk.risk_score||0)*100);
+            return `
+        <div class="p-3 rounded-xl space-y-1.5 ${rk.is_ragqa ? 'ragqa-card' : 'regular-card'}">
+          <div class="flex gap-3 items-start">
+            <div class="shrink-0 flex flex-col items-start gap-1 pt-0.5 w-14">
+              <span class="font-mono text-[10px] font-black text-slate-400 leading-none">${rk.event_id}</span>
+              ${rk.is_ragqa
+                ? '<span class="ragqa-badge">RAGQA</span>'
+                : `<span class="px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded text-[8px] font-black">${rk.category}</span>`}
+            </div>
+            <p class="text-xs text-slate-600 font-medium leading-relaxed flex-1">${rk.description}</p>
+            <span class="text-[10px] font-black shrink-0 pt-0.5" style="color:${scoreColor(sc)}">${sc}</span>
+          </div>
+          ${rk.connection ? `<div class="ml-14 px-2 py-1 rounded text-[10px] font-bold ${rk.is_ragqa ? 'ragqa-link' : 'regular-link'}">🔗 ${rk.connection}</div>` : ''}
+        </div>`;
+          }).join('')
         : '<p class="text-xs text-slate-400 py-2">無高度相符的知識庫條目</p>';
 
-      // 受影響零件
-      const partsHtml = r.affected_parts.length ? r.affected_parts.map(p => `
-        <div onclick="jumpToBom()" class="flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:shadow-sm cursor-pointer transition-all">
-          <div class="flex-1 min-w-0">
-            <p class="font-mono font-black text-slate-900 text-sm">${p.gbt_pn}</p>
-            <p class="text-[10px] text-slate-400 font-medium truncate">${p.vendor_note || p.vendor}</p>
-          </div>
-          <div class="text-right shrink-0">
-            <p class="font-mono font-bold text-blue-600">$${(p.unit_price||0).toLocaleString()}</p>
-            <p class="text-[10px] text-slate-400">${p.vendor}</p>
-          </div>
-          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" class="text-slate-300" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
-        </div>`).join('')
+      // 受影響零件（含明確原因）
+      const partsHtml = r.affected_parts.length ? r.affected_parts.map(p => {
+        const directBadge = p.direct
+          ? `<span class="px-1.5 py-0.5 bg-red-50 text-red-600 border border-red-100 rounded text-[9px] font-black">直接影響</span>`
+          : `<span class="px-1.5 py-0.5 bg-slate-50 text-slate-400 border border-slate-100 rounded text-[9px] font-black">間接風險</span>`;
+        const reasonsHtml = (p.reasons||[]).map(r =>
+          `<li class="text-[11px] text-slate-500 leading-snug">${r}</li>`).join('');
+        return `
+          <div onclick="jumpToBom()" class="p-4 bg-white border ${p.direct?'border-red-200':'border-slate-200'} rounded-xl hover:shadow-sm cursor-pointer transition-all">
+            <div class="flex items-center gap-3 mb-2">
+              <p class="font-mono font-black text-slate-900">${p.gbt_pn}</p>
+              ${directBadge}
+              <div class="ml-auto text-right shrink-0">
+                <p class="font-mono font-bold text-blue-600 text-sm">$${(p.unit_price||0).toLocaleString()}</p>
+                <p class="text-[10px] text-slate-400">${p.vendor}</p>
+              </div>
+            </div>
+            <ul class="list-disc list-inside space-y-0.5 pl-1">${reasonsHtml}</ul>
+          </div>`;
+      }).join('')
         : '<p class="text-xs text-slate-400 py-2">未偵測到直接受影響零件</p>';
 
       // 受影響工單
@@ -546,23 +1175,36 @@
         : '<p class="text-xs text-slate-400 py-2">暫無直接關聯工單</p>';
 
       document.getElementById('eval-body').innerHTML = `
-        <!-- 風險摘要 -->
-        <div class="flex items-start gap-4 p-5 ${hi?'bg-red-50 border-red-100':md?'bg-amber-50 border-amber-100':'bg-blue-50 border-blue-100'} rounded-2xl border">
-          <div class="w-16 h-16 rounded-2xl flex flex-col items-center justify-center ${col} text-white shadow-lg shrink-0">
-            <span class="text-[7px] opacity-70 font-mono font-bold">RISK</span>
-            <span class="text-2xl font-black">${sc}</span>
+        <!-- 風險摘要 + 評分依據 -->
+        <div class="p-5 ${hi?'bg-red-50 border-red-100':md?'bg-amber-50 border-amber-100':'bg-blue-50 border-blue-100'} rounded-2xl border">
+          <div class="flex items-start gap-4 mb-3">
+            <div class="w-16 h-16 rounded-2xl flex flex-col items-center justify-center ${col} text-white shadow-lg shrink-0">
+              <span class="text-[7px] opacity-70 font-mono font-bold">RISK</span>
+              <span class="text-2xl font-black">${overallPct}</span>
+            </div>
+            <div class="flex-1">
+              <p class="font-black text-slate-900 text-sm">${n.suggested_category} 類風險</p>
+              <p class="text-xs text-slate-600 mt-1 leading-relaxed">${r.recommendation}</p>
+            </div>
           </div>
-          <div class="flex-1">
-            <p class="font-black text-slate-900 text-sm">${n.suggested_category} 類風險</p>
-            <p class="text-xs text-slate-600 mt-1 leading-relaxed">${r.recommendation}</p>
-          </div>
+          ${breakdown ? `<div class="mt-2 pt-2 border-t ${hi?'border-red-100':md?'border-amber-100':'border-blue-100'}">
+            <p class="text-[10px] font-mono text-slate-500">評分依據：${breakdown} = <span class="font-black">${overallPct} 分</span></p>
+          </div>` : ''}
         </div>
 
         <!-- RAG 知識庫比對 -->
         <div>
-          <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">
-            📚 RAG 知識庫比對 — ${r.matched_risks.length} 筆相關風險事件
-          </p>
+          <div class="flex items-center gap-2 mb-1 flex-wrap">
+            <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+              📚 RAG 知識庫比對 — ${r.matched_risks.length} 筆相關事件
+            </p>
+            ${ragqaCount > 0 ? `<span class="ragqa-badge">RAGQA 大腦命中 ${ragqaCount} 筆</span>` : ''}
+          </div>
+          <div class="flex items-center gap-1.5 mb-3">
+            <span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#7c3aed;flex-shrink:0"></span>
+            <p class="text-[10px] text-slate-400 font-medium">紫色 RAGQA 為 AI 評估核心知識，其餘為已審核風險事件（越多越精準）</p>
+          </div>
+          ${noRagqaWarn}
           <div class="space-y-2">${ragHtml}</div>
         </div>
 
@@ -629,8 +1271,13 @@
           body: JSON.stringify({ trigger_title: title, gbt_pn, keypart_page_id: keypartPageId, suggested_qty: qty })
         });
         if (!resp.ok) throw new Error((await resp.json()).detail);
+        const data = await resp.json();
+        if (data.action_id && title) {
+          localStorage.setItem('trigger_' + data.action_id, title);
+        }
         btn.innerText = '✓ 決策已建立';
         btn.className = btn.className.replace('bg-blue-600 hover:bg-blue-700','bg-green-600 hover:bg-green-700');
+        addNotification('採購決策已建立，待覆核中心審核。', 'warn');
         // 更新 sidebar 待審核 badge
         const badge = document.getElementById('pending-badge');
         const cur = parseInt(badge.innerText) || 0;
@@ -712,39 +1359,46 @@
     }
 
     /* ── BOM ── */
+    function renderBom(items) {
+      const box = document.getElementById('bom-container');
+      if (!items.length) { box.innerHTML = '<p class="text-slate-400 text-sm font-bold py-4">沒有符合條件的 BOM 資料</p>'; return; }
+      const grouped = {};
+      items.forEach(b => { const k = b.sku_pn||'(未指定 SKU)'; if(!grouped[k]) grouped[k]=[]; grouped[k].push(b); });
+      box.innerHTML = Object.entries(grouped).map(([sku, parts]) => `
+        <div class="bg-white rounded-2xl border border-slate-200 mb-5 shadow-sm">
+          <div class="bom-table-wrap overflow-hidden rounded-2xl">
+          <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
+            <span class="font-mono font-black text-slate-900">${sku}</span>
+            <span class="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-black text-slate-500">${parts.length} 項零件</span>
+          </div>
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-slate-100">
+              <th class="text-left px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">料號 (GBT_PN)</th>
+              <th class="text-left px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">供應商</th>
+              <th class="text-left px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">單價 (USD)</th>
+              <th class="text-left px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">供應商備註</th>
+            </tr></thead>
+            <tbody>${parts.map(p=>`
+              <tr class="border-b border-slate-50 hover:bg-slate-50 transition-all">
+                <td class="px-6 py-3 font-mono font-bold text-slate-800 text-sm">${p.gbt_pn||'--'}</td>
+                <td class="px-6 py-3 text-slate-600 font-medium text-sm">${p.vendor||'--'}</td>
+                <td class="px-6 py-3 font-mono font-bold text-blue-600 text-sm">$${(p.unit_price||0).toLocaleString()}</td>
+                <td class="px-6 py-3 text-slate-400 text-xs max-w-xs truncate" title="${p.vendor_note||''}">${p.vendor_note||'--'}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+          </div><!-- /bom-table-wrap -->
+        </div>`).join('');
+    }
+
     async function fetchBom(skuPn) {
       const box = document.getElementById('bom-container');
       box.innerHTML = '<p class="text-slate-400 text-sm font-bold py-4">載入中...</p>';
       try {
         const { results } = await (await fetch(`${API}/api/bom`)).json();
-        let items = results.filter(b => b.gbt_pn || b.sku_pn);
-        if (skuPn) items = items.filter(b => b.sku_pn?.toLowerCase().includes(skuPn.toLowerCase()));
-        if (!items.length) { box.innerHTML = '<p class="text-slate-400 text-sm font-bold py-4">沒有符合條件的 BOM 資料</p>'; return; }
-        const grouped = {};
-        items.forEach(b => { const k = b.sku_pn||'(未指定 SKU)'; if(!grouped[k]) grouped[k]=[]; grouped[k].push(b); });
-        box.innerHTML = Object.entries(grouped).map(([sku, parts]) => `
-          <div class="bg-white rounded-2xl border border-slate-200 mb-5 overflow-hidden shadow-sm">
-            <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
-              <span class="font-mono font-black text-slate-900">${sku}</span>
-              <span class="px-2 py-0.5 bg-white border border-slate-200 rounded text-[10px] font-black text-slate-500">${parts.length} 項零件</span>
-            </div>
-            <table class="w-full text-sm">
-              <thead><tr class="border-b border-slate-100">
-                <th class="text-left px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">料號 (GBT_PN)</th>
-                <th class="text-left px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">供應商</th>
-                <th class="text-left px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">單價 (USD)</th>
-                <th class="text-left px-6 py-3 text-[9px] font-black text-slate-400 uppercase tracking-widest">供應商備註</th>
-              </tr></thead>
-              <tbody>${parts.map(p=>`
-                <tr class="border-b border-slate-50 hover:bg-slate-50 transition-all">
-                  <td class="px-6 py-3 font-mono font-bold text-slate-800 text-sm">${p.gbt_pn||'--'}</td>
-                  <td class="px-6 py-3 text-slate-600 font-medium text-sm">${p.vendor||'--'}</td>
-                  <td class="px-6 py-3 font-mono font-bold text-blue-600 text-sm">$${(p.unit_price||0).toLocaleString()}</td>
-                  <td class="px-6 py-3 text-slate-400 text-xs max-w-xs truncate" title="${p.vendor_note||''}">${p.vendor_note||'--'}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>`).join('');
+        allBom = results.filter(b => b.gbt_pn || b.sku_pn);
+        const items = skuPn ? allBom.filter(b => b.sku_pn?.toLowerCase().includes(skuPn.toLowerCase())) : allBom;
+        renderBom(items);
       } catch(e) {
         box.innerHTML = `<p class="text-red-500 font-bold text-sm py-4">連線失敗：${e.message}</p>`;
       }
@@ -763,6 +1417,7 @@
       try {
         const { results } = await (await fetch(`${API}/api/actions`)).json();
         const acts = results.filter(a => a.action_id);
+        allActions = acts;
         const pending  = acts.filter(a => ['Pending','待審核'].includes(a.status)).length;
         const approved = acts.filter(a => ['Approved','核准'].includes(a.status)).length;
         const rejected = acts.filter(a => ['Rejected','駁回'].includes(a.status)).length;
@@ -774,19 +1429,31 @@
         const badge = document.getElementById('pending-badge');
         pending > 0 ? (badge.innerText=pending, badge.classList.remove('hidden')) : badge.classList.add('hidden');
 
-        box.innerHTML = acts.length ? acts.map(a => {
-          const isPending = ['Pending','待審核'].includes(a.status);
+        renderActionCards(acts);
+      } catch(e) {
+        box.innerHTML = `<p class="text-red-500 font-bold text-sm py-4">連線失敗：${e.message}</p>`;
+      }
+    }
+
+    function renderActionCards(acts) {
+      const box = document.getElementById('action-container');
+      box.innerHTML = acts.length ? acts.map(a => {
+          const isPending  = ['Pending','待審核'].includes(a.status);
+          const isApproved = ['Approved','核准'].includes(a.status);
           const cls = ACT_CLS[a.status] || 'bg-slate-50 text-slate-500 border-slate-100';
+          const reviewTs = !isPending && a.review_time ? formatReviewTime(a.review_time) : '';
           const skuTags = (a.affected_skus||[]).map(s=>`<span class="px-2 py-0.5 bg-slate-100 rounded font-mono text-[10px] font-bold">${s}</span>`).join(' ');
           const orderTags = (a.affected_orders||[]).map(o=>`<span class="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded font-mono text-[10px] font-bold">${o}</span>`).join(' ');
+          const triggerTitle = a.trigger || localStorage.getItem('trigger_' + a.action_id) || '';
           return `
             <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all">
 
               <!-- 標題列 -->
-              <div class="flex items-center justify-between mb-5">
-                <div class="flex items-center gap-3">
+              <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2 flex-wrap">
                   <span class="font-mono font-black text-slate-900 text-base">${a.action_id}</span>
                   <span class="px-2 py-0.5 rounded border text-[10px] font-black uppercase ${cls}">${a.status}</span>
+                  ${reviewTs ? `<span class="text-[10px] text-slate-400 font-mono">${isApproved?'核准':'駁回'}於 ${reviewTs}</span>` : ''}
                 </div>
                 <div class="text-right">
                   <p class="text-[9px] text-slate-400 font-black uppercase tracking-widest">總決策價值</p>
@@ -794,8 +1461,18 @@
                 </div>
               </div>
 
+              ${triggerTitle ? `
+              <!-- 觸發新聞 -->
+              <div class="flex items-start gap-2 mb-4 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl">
+                <svg class="shrink-0 mt-0.5" width="12" height="12" fill="none" stroke="#0369a1" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h10l6 6v8a2 2 0 0 1-2 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <div>
+                  <span class="text-[9px] font-black text-sky-600 uppercase tracking-widest">觸發新聞事件</span>
+                  <p class="text-xs font-bold text-sky-900 mt-0.5 leading-snug">${triggerTitle}</p>
+                </div>
+              </div>` : ''}
+
               <!-- 建議採購零件 -->
-              <div class="flex gap-4 mb-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+              <div class="proc-grid flex gap-4 mb-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
                 <div class="flex-1">
                   <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">建議採購零件</p>
                   <p class="font-mono font-black text-slate-900">${a.gbt_pn||'--'}</p>
@@ -828,12 +1505,20 @@
                 <div class="flex gap-3 justify-end">
                   <button onclick="approveAction('${a.page_id}')" class="px-6 py-2.5 bg-green-600 text-white rounded-xl font-black text-xs hover:bg-green-700 transition-all">✓ 核准採購</button>
                   <button onclick="openRejectModal('${a.page_id}')" class="px-6 py-2.5 bg-white border border-red-200 text-red-600 rounded-xl font-black text-xs hover:bg-red-50 transition-all">✗ 駁回</button>
+                </div>`
+              :isApproved?`
+                <div class="flex gap-3 justify-end mt-3 pt-3 border-t border-slate-100">
+                  <button onclick="openNotifyModal('${a.page_id}')" class="flex items-center gap-1.5 px-5 py-2 bg-blue-600 text-white rounded-xl font-black text-xs hover:bg-blue-700 transition-all">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.62 3.44 2 2 0 0 1 3.6 1.26h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6.13 6.13l.98-.98a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                    通知採購中心
+                  </button>
+                  <button onclick="downloadProcDoc('${a.action_id}')" class="flex items-center gap-1.5 px-5 py-2 bg-white border border-slate-200 text-slate-700 rounded-xl font-black text-xs hover:bg-slate-50 transition-all">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    下載採購請求單
+                  </button>
                 </div>`:''}
             </div>`;
         }).join('') : '<p class="text-slate-400 text-sm font-bold py-4">目前沒有決策記錄</p>';
-      } catch(e) {
-        box.innerHTML = `<p class="text-red-500 font-bold text-sm py-4">連線失敗：${e.message}</p>`;
-      }
     }
 
     async function approveAction(pageId) {
@@ -841,7 +1526,13 @@
       const r = await fetch(`${API}/api/actions/${pageId}/approve`, {
         method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({reviewer:'PM Team'})
       });
-      r.ok ? fetchActions() : alert('錯誤：' + (await r.json()).detail);
+      if (r.ok) {
+        await fetchActions();
+        addNotification('決策已核准，請通知採購中心安排採購。', 'success');
+        openNotifyModal(pageId);
+      } else {
+        alert('錯誤：' + (await r.json()).detail);
+      }
     }
 
     function openRejectModal(pageId) {

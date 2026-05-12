@@ -175,6 +175,8 @@ def fetch_enriched():
             suggested_qty=qty,
             total_cost=round(unit_price * qty, 2),
             status=str(_get_prop(p.get("Status"))),
+            review_time=page.get("last_edited_time", ""),
+            trigger=str(_get_prop(p.get("Trigger")) or ""),
             affected_skus=affected_skus,
             affected_orders=affected_order_ids,
             affected_qty=affected_qty,

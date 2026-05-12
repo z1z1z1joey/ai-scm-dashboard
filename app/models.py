@@ -45,6 +45,8 @@ class ActionLog(BaseModel):
     suggested_qty: int = 0
     total_cost: float = 0       # unit_price × qty
     status: str = "Pending"
+    review_time: str = ""       # last_edited_time from Notion (ISO 8601)
+    trigger: str = ""           # 觸發此決策的新聞標題
     affected_skus: list[str] = []    # 從 BOM 追蹤
     affected_orders: list[str] = []  # 從 Orders 追蹤
     affected_qty: int = 0            # 受影響工單總量

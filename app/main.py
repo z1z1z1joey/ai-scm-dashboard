@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException
+from typing import Optional
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -8,7 +9,7 @@ from app.notion import fetch_risks, fetch_keyparts, fetch_enriched, update_actio
 import asyncio
 from app.news import fetch_news, add_risk_to_notion, cleanup_old_news, evaluate_news_impact, create_action_from_news
 
-app = FastAPI(title="智慧供應鏈風險預警系統 v3.1")
+app = FastAPI(title="AI智慧供應平台")
 
 app.add_middleware(
     CORSMiddleware,
@@ -68,12 +69,15 @@ async def get_actions():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/news")
-async def get_news():
+async def get_news(feed_idx: Optional[int] = Query(default=None)):
     try:
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, cleanup_old_news)
-        data = await fetch_news()
-        return {"total": len(data), "results": data}
+        cleaned = 0
+        if feed_idx is None:
+            cleaned = await loop.run_in_executor(None, cleanup_old_news)
+        idx = feed_idx if feed_idx is not None else -1
+        data = await fetch_news(feed_idx=idx)
+        return {"total": len(data), "results": data, "feed_idx": idx, "cleaned": cleaned}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

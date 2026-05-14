@@ -8,6 +8,20 @@ from app.config import settings
 
 notion = Client(auth=settings.notion_token)
 
+
+def _tokenize(text: str) -> set[str]:
+    """
+    提取 ASCII 英文詞 + 中文字元 bigram。
+    避免中文無空格導致整句被視為一個 token 的問題。
+    """
+    tl = text.lower()
+    # 英文詞（2字元以上）
+    ascii_words = set(re.findall(r'[a-z]{2,}', tl))
+    # 中文字元 bigram（相鄰兩字元）
+    cjk_chars = re.findall(r'[一-鿿]', tl)
+    bigrams = {cjk_chars[i] + cjk_chars[i + 1] for i in range(len(cjk_chars) - 1)}
+    return ascii_words | bigrams
+
 FEEDS = [
     # ── 國際供應鏈 ──────────────────────────────────────
     ("半導體供應鏈", "https://news.google.com/rss/search?q=semiconductor+supply+chain+shortage+risk&hl=zh-TW&gl=TW&ceid=TW:zh-Hant"),
@@ -206,36 +220,80 @@ def evaluate_news_impact(title: str, description: str, category: str, risk_score
 
     text       = title + " " + description
     text_lower = text.lower()
-    words      = set(re.findall(r'[\w一-鿿]{2,}', text_lower))
+    words      = _tokenize(text)   # ASCII詞 + 中文bigram
 
     # ── 1. Agentic RAG：語意檢索 ─────────────────────────
     _STOPWORDS_CONN = {
         'the','and','for','with','this','that','from','into','have','been',
         '供應','零件','使用','提供','支援','產品','規格','包含','適用',
-    }
-    _CAT_CONN = {
-        "供應": "均屬供應鏈短缺/交期延遲類風險",
-        "市場": "均涉及市場價格波動或採購成本上升",
-        "政策": "均涉及政策法規或關稅管制影響",
-        "地緣": "均屬地緣政治緊張相關風險",
-        "自然": "均涉及自然災害或不可抗力事件",
+        '相關','影響','導致','可能','風險','情況','進行','造成',
     }
 
-    def _conn_reason(desc: str, cat: str, sem_score: float) -> str:
-        rw = set(re.findall(r'[\w一-鿿]{2,}', desc.lower()))
-        common = (words & rw) - _STOPWORDS_CONN
-        comp_hit  = common & _COMPONENT_TERMS
-        other_hit = common - _COMPONENT_TERMS
-        parts = []
+    # 風險事件類型 → 具體影響說明模板
+    _RTYPE_CONN = {
+        "出口管制": lambda countries: f"{'、'.join(countries[:2]) or '出口國'} 出口管制直接波及此類供應鏈",
+        "供應短缺": lambda countries: "均面臨供應短缺壓力，備料需求上升",
+        "價格波動": lambda countries: "原物料漲價將連帶推高此類採購成本",
+        "地緣政治": lambda countries: f"{'、'.join(countries[:2]) or '相關地區'} 地緣緊張可能中斷此類物流與供貨",
+        "自然災害": lambda countries: f"災害事件可能波及{'、'.join(countries[:2]) or '當地'}供應商生產能力",
+        "產能問題": lambda countries: "產能受限加劇此類元件缺料風險",
+    }
+
+    def _conn_reason(desc: str, cat: str, sem_score: float, ent: dict) -> str:
+        """
+        嚴謹的關聯說明：優先顯示直接證據，其次推論，
+        最後才是類別通用描述，並標明語意強度。
+        """
+        rw        = _tokenize(desc)
+        common    = (words & rw) - _STOPWORDS_CONN
+        comp_hit  = sorted(common & _COMPONENT_TERMS)
+        other_hit = sorted(w for w in common - _COMPONENT_TERMS if len(w) >= 2)
+
+        pct  = round(sem_score * 100)
+        qual = "高度" if pct >= 30 else "中度" if pct >= 12 else "低度"
+
+        reasons: list[str] = []
+
+        # ① 直接元件重疊（最強證據）
         if comp_hit:
-            parts.append(f"零件品項「{'、'.join(t.upper() for t in list(comp_hit)[:3])}」")
+            reasons.append(f"共同涉及元件「{'、'.join(t.upper() for t in comp_hit[:3])}」")
+
+        # ② 有意義關鍵詞重疊
         if other_hit:
-            parts.append(f"關鍵詞「{'、'.join(list(other_hit)[:3])}」")
-        pct = round(sem_score * 100)
-        sem_str = f"語意相似度 {pct}%"
-        if parts:
-            return f"新聞與此事件均涉及{'與'.join(parts)}（{sem_str}）"
-        return f"{_CAT_CONN.get(cat, '風險類別與新聞主題相符')}（{sem_str}）"
+            reasons.append(f"共同關鍵詞「{'、'.join(other_hit[:3])}」")
+
+        # ③ 無直接重疊 → 用感知實體推論
+        if not reasons:
+            news_comps    = set(ent.get("components", []))
+            news_rtypes   = ent.get("risk_types", [])
+            news_countries= [c.split()[-1] for c in ent.get("countries", [])]
+
+            # 檢查 QA 描述中的元件是否與新聞感知到的元件同類
+            qa_comps = {t for t in _COMPONENT_TERMS if t in desc.lower()}
+            shared   = {t.upper() for t in news_comps} & {t.upper() for t in qa_comps}
+            if shared:
+                reasons.append(f"元件類型「{'、'.join(sorted(shared)[:2])}」風險共振")
+            elif news_rtypes:
+                fn = _RTYPE_CONN.get(news_rtypes[0])
+                if fn:
+                    reasons.append(fn(news_countries))
+
+        if not reasons:
+            # 完全無法找到具體關聯 → 誠實回報
+            if pct < 10:
+                return f"語意相似度 {pct}%，直接關聯依據不足，僅供參考"
+            cat_generic = {
+                "供應": "供應鏈短缺情境具潛在間接關聯",
+                "市場": "市場波動情境具潛在間接關聯",
+                "政策": "政策管制情境具潛在間接關聯",
+                "地緣": "地緣政治緊張情境具潛在間接關聯",
+                "自然": "自然災害情境具潛在間接關聯",
+                "RAGQA": "知識庫條目與當前新聞情境具潛在關聯",
+            }
+            return f"{cat_generic.get(cat, '間接相關')}（語意 {pct}%）"
+
+        reason_str = "；".join(reasons)
+        return f"{reason_str}（語意 {pct}%，{qual}相關）"
 
     all_risks    = [r for r in fetch_risks() if r.description]
     ragqa_pool   = [r for r in all_risks if r.category.upper() == 'RAGQA']
@@ -283,7 +341,7 @@ def evaluate_news_impact(title: str, description: str, category: str, risk_score
 
         # 零件描述關鍵詞重疊（至少 2 個有意義詞）
         if kp.vendor_note:
-            note_words = set(re.findall(r'[\w一-鿿]{2,}', kp.vendor_note.lower()))
+            note_words = _tokenize(kp.vendor_note)
             overlap = (words & note_words) - _STOPWORDS
             if len(overlap) >= 2:
                 kw_str = '、'.join(list(overlap)[:3])
@@ -333,17 +391,34 @@ def evaluate_news_impact(title: str, description: str, category: str, risk_score
     affected_orders = [o for o in orders_list if o.sku_pn in affected_skus]
     total_qty = sum(o.quantity for o in affected_orders)
 
-    # ── 5. 綜合評分（有據可查） ───────────────────────────
+    # ── 5. 綜合評分（嚴謹版） ─────────────────────────────
     n_direct    = sum(1 for p in affected_kp if p["direct"])
     order_bonus = min(len(affected_orders) * 3, 15)
-    raw_total   = min(base + n_direct * 10 + order_bonus, 99)
-    overall     = round(raw_total / 100, 2)
+
+    # RAG 品質加分：有高語意分數的命中才加分
+    rag_scores     = [score_map.get(id(r), 0.0) for r in matched_risks]
+    avg_rag_score  = (sum(rag_scores) / len(rag_scores)) if rag_scores else 0.0
+    rag_bonus      = round(avg_rag_score * 15)   # 最多 +15（平均語意 100% 時）
+    has_ragqa_hit  = any(r.category.upper() == "RAGQA" for r in matched_risks)
+    ragqa_bonus    = 5 if has_ragqa_hit else 0
+
+    raw_total = min(base + n_direct * 10 + order_bonus + rag_bonus + ragqa_bonus, 99)
+
+    # 無任何直接命中且 RAG 語意低 → 分數收斂至較低水準
+    if n_direct == 0 and avg_rag_score < 0.10:
+        raw_total = min(raw_total, base + 10)
+
+    overall = round(raw_total / 100, 2)
 
     score_parts = [f"分類基礎（{category}）{base} 分"]
     if n_direct:
         score_parts.append(f"廠商直接命中 +{n_direct * 10}（{n_direct} 項）")
     if order_bonus:
-        score_parts.append(f"工單衝擊加分 +{order_bonus}（{len(affected_orders)} 張）")
+        score_parts.append(f"工單衝擊 +{order_bonus}（{len(affected_orders)} 張）")
+    if rag_bonus:
+        score_parts.append(f"RAG 語意品質 +{rag_bonus}（平均 {round(avg_rag_score*100)}%）")
+    if ragqa_bonus:
+        score_parts.append(f"RAGQA 知識命中 +{ragqa_bonus}")
 
     rec = (
         f"綜合評分 {raw_total} 分（{'、'.join(score_parts)}）。"
@@ -378,7 +453,7 @@ def evaluate_news_impact(title: str, description: str, category: str, risk_score
              "semantic_score": round(score_map.get(id(r), 0.0), 3),
              "description":    r.description[:160],
              "connection":     _conn_reason(r.description, r.category,
-                                            score_map.get(id(r), 0.0))}
+                                            score_map.get(id(r), 0.0), entities)}
             for r in matched_risks
         ],
         "affected_parts":   affected_kp,

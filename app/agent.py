@@ -127,7 +127,8 @@ class RiskAssessmentAgent:
         完整 Agentic 管線：
           1. 感知實體
           2. 分別對 RAGQA 知識庫 & 一般風險事件進行語意檢索
-          3. 合併結果（RAGQA 保證 2 席，一般最多 3 席）
+          3. 設最低門檻過濾（不合格不出現）
+          4. RAGQA 最多 2 席（需過門檻），一般最多 3 席
         回傳 {entities, matched: list[(score, RiskItem)]}
         """
         news_text = f"{title} {description}"
@@ -139,14 +140,20 @@ class RiskAssessmentAgent:
         ragqa_ranked   = self.semantic_rank(news_text, ragqa_pool,   item_text)
         regular_ranked = self.semantic_rank(news_text, regular_pool, item_text)
 
-        ragqa_top  = ragqa_ranked[:2]
-        seen_ids   = {id(item) for _, item in ragqa_top}
-        regular_top = [(s, item) for s, item in regular_ranked[:3]
-                       if id(item) not in seen_ids]
+        # 語意門檻：低於此分數不列入（避免湊數）
+        # TF-IDF char n-gram：0.06 等同「有實質字元重疊」
+        RAGQA_THRESHOLD   = 0.06
+        REGULAR_THRESHOLD = 0.04
+
+        ragqa_top = [(s, item) for s, item in ragqa_ranked
+                     if s >= RAGQA_THRESHOLD][:2]
+        seen_ids  = {id(item) for _, item in ragqa_top}
+        regular_top = [(s, item) for s, item in regular_ranked
+                       if s >= REGULAR_THRESHOLD and id(item) not in seen_ids][:3]
 
         return {
             "entities": entities,
-            "matched":  ragqa_top + regular_top,  # (semantic_score, RiskItem)
+            "matched":  ragqa_top + regular_top,
         }
 
 

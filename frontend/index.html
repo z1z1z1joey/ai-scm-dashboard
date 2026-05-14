@@ -1107,20 +1107,39 @@ ${today}`;
       const col = hi ? 'bg-red-600' : md ? 'bg-amber-500' : 'bg-blue-600';
 
       // 評分依據
-      const breakdown = (r.score_breakdown || []).join(' ＋ ');
+      const breakdown  = (r.score_breakdown || []).join(' ＋ ');
       const overallPct = Math.round((r.overall_score || 0) * 100);
 
-      // RAG 知識庫
-      const ragqaCount = (r.matched_risks||[]).filter(rk => rk.is_ragqa).length;
+      // ── 感知實體 chips ───────────────────────────────────
+      const ent = r.entities || {};
+      const compChips   = (ent.components||[]).map(c =>
+        `<span class="px-2 py-0.5 bg-blue-50 border border-blue-200 text-blue-700 rounded-full text-[10px] font-black uppercase">${c}</span>`).join('');
+      const countryChips = (ent.countries||[]).map(c =>
+        `<span class="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full text-[10px] font-bold">${c}</span>`).join('');
+      const riskTypeChips = (ent.risk_types||[]).map(t =>
+        `<span class="px-2 py-0.5 bg-amber-50 border border-amber-200 text-amber-700 rounded-full text-[10px] font-black">${t}</span>`).join('');
+      const entityHtml = (compChips || countryChips || riskTypeChips)
+        ? `<div class="p-3 bg-slate-50 rounded-xl border border-slate-100">
+             <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">🤖 AI 感知實體 Sensing Agent</p>
+             <div class="flex flex-wrap gap-1.5">
+               ${compChips}${countryChips}${riskTypeChips}
+             </div>
+           </div>`
+        : '';
+
+      // ── RAG 知識庫 ────────────────────────────────────────
+      const ragqaCount  = (r.matched_risks||[]).filter(rk => rk.is_ragqa).length;
       const noRagqaWarn = (r.ragqa_total === 0)
         ? `<div class="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 font-medium">
              <span class="shrink-0 mt-0.5">⚠️</span>
              <span>Notion 風險資料庫中尚無 <strong>RAGQA</strong> 分類條目。請在 Notion 中新增 Category = RAGQA 的知識條目，AI 大腦將更準確地評估新聞影響。</span>
            </div>` : '';
       const scoreColor = sc => sc > 80 ? '#ef4444' : sc > 50 ? '#f59e0b' : '#3b82f6';
+      const semColor   = p  => p >= 60 ? '#7c3aed' : p >= 35 ? '#0369a1' : '#94a3b8';
       const ragHtml = r.matched_risks.length
         ? r.matched_risks.map(rk => {
-            const sc = Math.round((rk.risk_score||0)*100);
+            const rkSc  = Math.round((rk.risk_score||0)*100);
+            const semPct = Math.round((rk.semantic_score||0)*100);
             return `
         <div class="p-3 rounded-xl space-y-1.5 ${rk.is_ragqa ? 'ragqa-card' : 'regular-card'}">
           <div class="flex gap-3 items-start">
@@ -1131,7 +1150,10 @@ ${today}`;
                 : `<span class="px-1.5 py-0.5 bg-slate-200 text-slate-500 rounded text-[8px] font-black">${rk.category}</span>`}
             </div>
             <p class="text-xs text-slate-600 font-medium leading-relaxed flex-1">${rk.description}</p>
-            <span class="text-[10px] font-black shrink-0 pt-0.5" style="color:${scoreColor(sc)}">${sc}</span>
+            <div class="shrink-0 flex flex-col items-end gap-1 pt-0.5">
+              <span class="text-[10px] font-black" style="color:${scoreColor(rkSc)}">${rkSc}</span>
+              <span class="text-[9px] font-bold px-1.5 py-0.5 rounded" style="background:#f1f5f9;color:${semColor(semPct)}">語意 ${semPct}%</span>
+            </div>
           </div>
           ${rk.connection ? `<div class="ml-14 px-2 py-1 rounded text-[10px] font-bold ${rk.is_ragqa ? 'ragqa-link' : 'regular-link'}">🔗 ${rk.connection}</div>` : ''}
         </div>`;
@@ -1174,6 +1196,42 @@ ${today}`;
         </div>`).join('')
         : '<p class="text-xs text-slate-400 py-2">暫無直接關聯工單</p>';
 
+      // ── 衝擊傳導鏈 ────────────────────────────────────────
+      const chainParts  = (r.affected_parts||[]).slice(0,3).map(p=>p.gbt_pn).join(' · ') || '—';
+      const chainSkus   = (r.affected_skus||[]).slice(0,3).join(' · ') || '—';
+      const chainOrders = (r.affected_orders||[]).slice(0,3).map(o=>o.order_id).join(' · ') || '—';
+      const chainCost   = r.suggested_action ? `$${(r.suggested_action.estimated_cost||0).toLocaleString()}` : '—';
+      const chainHtml = `
+        <div class="p-4 bg-slate-900 rounded-2xl">
+          <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">⛓ 衝擊傳導鏈 Impact Chain</p>
+          <div class="flex items-center gap-1 flex-wrap text-[11px]">
+            <div class="flex flex-col items-center gap-1 shrink-0">
+              <span class="text-base">📰</span>
+              <span class="text-slate-400 font-bold">新聞</span>
+            </div>
+            <span class="text-slate-600 font-black mx-1">→</span>
+            <div class="flex flex-col items-center gap-1 shrink-0">
+              <span class="text-base">⚙️</span>
+              <span class="font-mono text-[9px] text-amber-400 font-black max-w-[80px] text-center leading-tight">${chainParts}</span>
+            </div>
+            <span class="text-slate-600 font-black mx-1">→</span>
+            <div class="flex flex-col items-center gap-1 shrink-0">
+              <span class="text-base">📦</span>
+              <span class="font-mono text-[9px] text-blue-400 font-black max-w-[80px] text-center leading-tight">${chainSkus}</span>
+            </div>
+            <span class="text-slate-600 font-black mx-1">→</span>
+            <div class="flex flex-col items-center gap-1 shrink-0">
+              <span class="text-base">🔧</span>
+              <span class="font-mono text-[9px] text-green-400 font-black max-w-[80px] text-center leading-tight">${chainOrders}</span>
+            </div>
+            <span class="text-slate-600 font-black mx-1">→</span>
+            <div class="flex flex-col items-center gap-1 shrink-0">
+              <span class="text-base">💰</span>
+              <span class="font-mono text-[9px] text-red-400 font-black">${chainCost}</span>
+            </div>
+          </div>
+        </div>`;
+
       document.getElementById('eval-body').innerHTML = `
         <!-- 風險摘要 + 評分依據 -->
         <div class="p-5 ${hi?'bg-red-50 border-red-100':md?'bg-amber-50 border-amber-100':'bg-blue-50 border-blue-100'} rounded-2xl border">
@@ -1192,17 +1250,23 @@ ${today}`;
           </div>` : ''}
         </div>
 
+        <!-- AI 感知實體 -->
+        ${entityHtml}
+
+        <!-- 衝擊傳導鏈 -->
+        ${chainHtml}
+
         <!-- RAG 知識庫比對 -->
         <div>
           <div class="flex items-center gap-2 mb-1 flex-wrap">
             <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-              📚 RAG 知識庫比對 — ${r.matched_risks.length} 筆相關事件
+              📚 RAG 知識庫語意比對 — ${r.matched_risks.length} 筆相關事件
             </p>
             ${ragqaCount > 0 ? `<span class="ragqa-badge">RAGQA 大腦命中 ${ragqaCount} 筆</span>` : ''}
           </div>
           <div class="flex items-center gap-1.5 mb-3">
             <span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#7c3aed;flex-shrink:0"></span>
-            <p class="text-[10px] text-slate-400 font-medium">紫色 RAGQA 為 AI 評估核心知識，其餘為已審核風險事件（越多越精準）</p>
+            <p class="text-[10px] text-slate-400 font-medium">紫色 RAGQA 為 AI 評估核心知識，語意% 為 TF-IDF 相似度</p>
           </div>
           ${noRagqaWarn}
           <div class="space-y-2">${ragHtml}</div>

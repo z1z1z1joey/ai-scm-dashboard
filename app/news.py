@@ -202,12 +202,13 @@ _CAT_ADVICE = {
 
 def evaluate_news_impact(title: str, description: str, category: str, risk_score: float) -> dict:
     from app.notion import fetch_risks, fetch_keyparts, fetch_enriched
+    from app.agent import agent
 
     text       = title + " " + description
     text_lower = text.lower()
     words      = set(re.findall(r'[\w一-鿿]{2,}', text_lower))
 
-    # ── 1. RAG 知識庫：關鍵字重疊比對 ───────────────────
+    # ── 1. Agentic RAG：語意檢索 ─────────────────────────
     _STOPWORDS_CONN = {
         'the','and','for','with','this','that','from','into','have','been',
         '供應','零件','使用','提供','支援','產品','規格','包含','適用',
@@ -220,38 +221,33 @@ def evaluate_news_impact(title: str, description: str, category: str, risk_score
         "自然": "均涉及自然災害或不可抗力事件",
     }
 
-    def _conn_reason(desc: str, cat: str) -> str:
+    def _conn_reason(desc: str, cat: str, sem_score: float) -> str:
         rw = set(re.findall(r'[\w一-鿿]{2,}', desc.lower()))
         common = (words & rw) - _STOPWORDS_CONN
-        comp_hit = common & _COMPONENT_TERMS
+        comp_hit  = common & _COMPONENT_TERMS
         other_hit = common - _COMPONENT_TERMS
         parts = []
         if comp_hit:
             parts.append(f"零件品項「{'、'.join(t.upper() for t in list(comp_hit)[:3])}」")
         if other_hit:
             parts.append(f"關鍵詞「{'、'.join(list(other_hit)[:3])}」")
+        pct = round(sem_score * 100)
+        sem_str = f"語意相似度 {pct}%"
         if parts:
-            return "新聞與此事件均涉及" + "與".join(parts)
-        return _CAT_CONN.get(cat, "風險類別與新聞主題相符")
-
-    def _overlap(r):
-        rw = set(re.findall(r'[\w一-鿿]{2,}', r.description.lower()))
-        base = len(words & rw)
-        comp = len((words & rw) & _COMPONENT_TERMS)
-        return base + comp * 2
+            return f"新聞與此事件均涉及{'與'.join(parts)}（{sem_str}）"
+        return f"{_CAT_CONN.get(cat, '風險類別與新聞主題相符')}（{sem_str}）"
 
     all_risks    = [r for r in fetch_risks() if r.description]
-    # RAGQA = 大腦核心知識（大小寫不敏感），保留獨立 2 個位置確保一定出現
     ragqa_pool   = [r for r in all_risks if r.category.upper() == 'RAGQA']
     regular_pool = [r for r in all_risks if r.category in _CAT_KEYWORDS]
 
-    ragqa_top   = sorted(ragqa_pool,   key=_overlap, reverse=True)[:2]
-    regular_top = sorted(regular_pool, key=_overlap, reverse=True)[:3]
+    # Agent 語意分析：實體提取 + TF-IDF 語意排名
+    agent_result  = agent.analyze(title, description, ragqa_pool, regular_pool)
+    entities      = agent_result["entities"]           # 感知到的實體
+    scored_matches = agent_result["matched"]           # [(semantic_score, RiskItem)]
 
-    # 合併：RAGQA 優先，去除重複，上限 5 筆
-    seen = {r.event_id for r in ragqa_top}
-    matched_risks = ragqa_top + [r for r in regular_top if r.event_id not in seen]
-    matched_risks = matched_risks[:5]
+    matched_risks  = [item for _, item in scored_matches]
+    score_map      = {id(item): score for score, item in scored_matches}
 
     # ── 2. 分類基礎分 ────────────────────────────────────
     CAT_BASE = {"自然": 75, "供應": 70, "政策": 65, "地緣": 60, "市場": 55, "新聞": 35}
@@ -373,13 +369,16 @@ def evaluate_news_impact(title: str, description: str, category: str, risk_score
 
     return {
         "ragqa_total": len(ragqa_pool),
+        "entities": entities,
         "matched_risks": [
-            {"event_id":    r.event_id,
-             "category":    r.category,
-             "is_ragqa":    r.category.upper() == "RAGQA",
-             "risk_score":  r.risk_score,
-             "description": r.description[:160],
-             "connection":  _conn_reason(r.description, r.category)}
+            {"event_id":       r.event_id,
+             "category":       r.category,
+             "is_ragqa":       r.category.upper() == "RAGQA",
+             "risk_score":     r.risk_score,
+             "semantic_score": round(score_map.get(id(r), 0.0), 3),
+             "description":    r.description[:160],
+             "connection":     _conn_reason(r.description, r.category,
+                                            score_map.get(id(r), 0.0))}
             for r in matched_risks
         ],
         "affected_parts":   affected_kp,

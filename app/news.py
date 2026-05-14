@@ -139,7 +139,9 @@ async def fetch_news(max_per_feed: int = 8, feed_idx: int = -1) -> list[dict]:
         overflow_ts.sort(key=lambda x: x[0], reverse=True)
         needed = 4 - len(fresh)
         fresh.extend(entry for _, entry in overflow_ts[:needed])
-    return fresh
+    # Sort by risk score descending, cap at 24
+    fresh.sort(key=lambda x: x["suggested_score"], reverse=True)
+    return fresh[:24]
 
 def _query_all_risk() -> list[dict]:
     pages, cursor = [], None
@@ -186,10 +188,11 @@ def add_risk_to_notion(title: str, description: str, category: str, risk_score: 
     page = notion.pages.create(
         parent={"database_id": settings.risk_db_id},
         properties={
-            "Event_ID":   {"title":     [{"text": {"content": event_id}}]},
-            "Risk_Score": {"number":    risk_score},
-            "Category":   {"select":    {"name": category}},
-            "Description":{"rich_text": [{"text": {"content": body[:2000]}}]},
+            "Event_ID":      {"title":     [{"text": {"content": event_id}}]},
+            "Risk_Score":    {"number":    risk_score},
+            "Category":      {"select":    {"name": category}},
+            "Description":   {"rich_text": [{"text": {"content": body[:2000]}}]},
+            "Review_Status": {"select":    {"name": "待審核"}},
         },
     )
     return {"event_id": event_id, "page_id": page["id"]}

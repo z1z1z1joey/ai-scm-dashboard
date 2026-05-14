@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from app.models import RiskResponse, KeyPartResponse, OrderResponse, BomResponse, ActionResponse
-from app.notion import fetch_risks, fetch_keyparts, fetch_enriched, update_action
+from app.notion import fetch_risks, fetch_keyparts, fetch_enriched, update_action, fetch_pending_risks, approve_risk, reject_risk, update_action_qty
 import asyncio
 from app.news import fetch_news, add_risk_to_notion, cleanup_old_news, evaluate_news_impact, create_action_from_news
 
@@ -127,6 +127,47 @@ async def create_action(body: CreateActionRequest):
             body.gbt_pn, body.keypart_page_id, body.suggested_qty, body.trigger_title
         ))
         return {"status": "ok", **result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/risks/pending")
+async def get_pending_risks():
+    try:
+        loop = asyncio.get_event_loop()
+        data = await loop.run_in_executor(None, fetch_pending_risks)
+        return {"total": len(data), "results": data}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.patch("/api/risks/{page_id}/approve")
+async def approve_risk_api(page_id: str):
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, lambda: approve_risk(page_id))
+        return {"status": "ok", "message": "風險已批准，納入評估"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.patch("/api/risks/{page_id}/reject")
+async def reject_risk_api(page_id: str):
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, lambda: reject_risk(page_id))
+        return {"status": "ok", "message": "已拒絕並封存"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+class UpdateQtyRequest(BaseModel):
+    qty: int
+
+@app.patch("/api/actions/{page_id}/qty")
+async def update_action_qty_api(page_id: str, body: UpdateQtyRequest):
+    if body.qty < 1:
+        raise HTTPException(status_code=400, detail="數量必須大於 0")
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, lambda: update_action_qty(page_id, body.qty))
+        return {"status": "ok", "qty": body.qty}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

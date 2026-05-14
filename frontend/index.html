@@ -141,12 +141,22 @@
             </svg>
             <span id="notif-badge" class="hidden absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full text-white text-[9px] font-black flex items-center justify-center px-1"></span>
           </button>
-          <div id="notif-panel" class="hidden absolute top-12 right-0 w-80 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
+          <div id="notif-panel" class="hidden absolute top-12 right-0 w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
             <div class="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <p class="text-sm font-black text-slate-900">通知中心</p>
-              <button onclick="clearNotifications()" class="text-xs text-slate-400 hover:text-red-500 font-bold transition-all">清除全部</button>
+              <button onclick="clearNotifications()" class="text-xs text-slate-400 hover:text-red-500 font-bold transition-all">清除通知</button>
             </div>
-            <div id="notif-list" class="max-h-72 overflow-y-auto custom-scrollbar">
+            <!-- 高風險待審核 -->
+            <div id="pending-risk-section" class="hidden">
+              <div class="px-4 py-2 bg-red-50 border-b border-red-100 flex items-center gap-2">
+                <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                <p class="text-xs font-black text-red-700 flex-1">高風險待審核 — 尚未納入風險評估</p>
+                <span id="pending-risk-count" class="px-1.5 py-0.5 bg-red-500 text-white text-[9px] font-black rounded-full">0</span>
+              </div>
+              <div id="pending-risk-list" class="max-h-52 overflow-y-auto custom-scrollbar"></div>
+            </div>
+            <!-- 系統通知 -->
+            <div id="notif-list" class="max-h-48 overflow-y-auto custom-scrollbar">
               <p class="text-slate-400 text-xs font-bold text-center py-6">目前無通知</p>
             </div>
           </div>
@@ -269,13 +279,14 @@
           <div class="p-3 bg-blue-50 text-blue-600 rounded-xl"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
         </div>
       </div>
-      <div class="flex justify-between items-center mb-4 md:mb-6">
+      <div class="flex justify-between items-center mb-3 md:mb-4">
         <h3 class="text-base md:text-lg font-black text-slate-900">決策審核清單</h3>
         <button onclick="fetchActions()" class="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-xl font-bold text-xs hover:bg-slate-50 transition-all">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
           刷新
         </button>
       </div>
+      <div id="action-filter-bar" class="flex flex-wrap gap-2 mb-4 md:mb-6"></div>
       <div id="action-container" class="space-y-4"></div>
     </div>
   </main>
@@ -411,7 +422,7 @@
       const nav = document.getElementById(`nav-${name}`);
       nav.className = nav.className.replace('inactive-nav', 'active-nav');
       if (name === 'orders') fetchOrders();
-      if (name === 'bom')    fetchBom('');
+      if (name === 'bom')    fetchBom((document.getElementById('sku-input')?.value || '').trim());
       if (name === 'review') fetchActions();
     }
 
@@ -438,46 +449,104 @@
         ) : allBom;
         renderBom(list);
       } else if (currentPageName === 'review') {
-        const list = t ? allActions.filter(a =>
+        const base = _getFilteredActions();
+        const list = t ? base.filter(a =>
           (a.action_id||'').toLowerCase().includes(t) ||
           (a.gbt_pn||'').toLowerCase().includes(t) ||
           (a.vendor||'').toLowerCase().includes(t) ||
           (a.trigger||'').toLowerCase().includes(t)
-        ) : allActions;
+        ) : base;
         renderActionCards(list);
       }
     }
 
     /* ── Notification System ── */
     let notifications = [];
+    let pendingRisks  = [];
+
+    function updateBellBadge() {
+      const unread  = notifications.filter(n => !n.read).length;
+      const total   = unread + pendingRisks.length;
+      const badge   = document.getElementById('notif-badge');
+      if (total > 0) {
+        badge.innerText = total > 9 ? '9+' : total;
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+
     function addNotification(msg, level = 'info') {
       const ts = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
       notifications.unshift({ msg, level, ts, read: false });
       if (notifications.length > 30) notifications.pop();
-      const unread = notifications.filter(n => !n.read).length;
-      const badge = document.getElementById('notif-badge');
-      badge.innerText = unread > 9 ? '9+' : unread;
-      badge.classList.remove('hidden');
+      updateBellBadge();
     }
-    function toggleNotifPanel() {
+
+    async function fetchPendingRisks() {
+      try {
+        const r = await fetch(`${API}/api/risks/pending`);
+        if (!r.ok) return [];
+        const d = await r.json();
+        return d.results || [];
+      } catch { return []; }
+    }
+
+    async function toggleNotifPanel() {
       const panel = document.getElementById('notif-panel');
       const isOpen = !panel.classList.contains('hidden');
       if (isOpen) { panel.classList.add('hidden'); return; }
       notifications.forEach(n => n.read = true);
-      document.getElementById('notif-badge').classList.add('hidden');
+      pendingRisks = await fetchPendingRisks();
+      updateBellBadge();
       renderNotifPanel();
       panel.classList.remove('hidden');
     }
+
     document.addEventListener('click', e => {
       const panel = document.getElementById('notif-panel');
       const btn   = document.getElementById('notif-btn');
       if (!panel.classList.contains('hidden') && !panel.contains(e.target) && !btn.contains(e.target))
         panel.classList.add('hidden');
     });
+
     function renderNotifPanel() {
+      // Pending risk section
+      const section = document.getElementById('pending-risk-section');
+      const prList  = document.getElementById('pending-risk-list');
+      if (pendingRisks.length) {
+        section.classList.remove('hidden');
+        document.getElementById('pending-risk-count').innerText = pendingRisks.length;
+        prList.innerHTML = pendingRisks.map(r => {
+          const sc  = Math.round((r.risk_score || 0) * 100);
+          const col = sc >= 80 ? 'text-red-600' : sc >= 50 ? 'text-amber-500' : 'text-slate-500';
+          return `
+          <div class="px-4 py-3 border-b border-slate-100 last:border-0 hover:bg-slate-50">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-mono text-[10px] font-black text-slate-500">${r.event_id}</span>
+              <span class="font-mono font-black text-xs ${col}">${sc}分</span>
+            </div>
+            <p class="text-[11px] text-slate-600 leading-snug mb-2">${r.description || r.category}</p>
+            <div class="flex gap-2">
+              <button onclick="approveRisk('${r.page_id}')"
+                class="flex-1 py-1 bg-green-600 text-white text-[10px] font-black rounded-lg hover:bg-green-700 transition-all">
+                ✓ 批准納入評估
+              </button>
+              <button onclick="rejectRisk('${r.page_id}')"
+                class="flex-1 py-1 bg-white border border-red-200 text-red-600 text-[10px] font-black rounded-lg hover:bg-red-50 transition-all">
+                ✗ 拒絕
+              </button>
+            </div>
+          </div>`;
+        }).join('');
+      } else {
+        section.classList.add('hidden');
+      }
+
+      // System notifications
       const box = document.getElementById('notif-list');
       if (!notifications.length) {
-        box.innerHTML = '<p class="text-slate-400 text-xs font-bold text-center py-6">目前無通知</p>';
+        box.innerHTML = '<p class="text-slate-400 text-xs font-bold text-center py-4">目前無通知</p>';
         return;
       }
       const COLOR = { info:'bg-blue-400', warn:'bg-amber-400', danger:'bg-red-500', success:'bg-green-500' };
@@ -490,10 +559,36 @@
           </div>
         </div>`).join('');
     }
+
     function clearNotifications() {
       notifications = [];
       renderNotifPanel();
-      document.getElementById('notif-badge').classList.add('hidden');
+      updateBellBadge();
+    }
+
+    async function approveRisk(pageId) {
+      const r = await fetch(`${API}/api/risks/${pageId}/approve`, { method: 'PATCH' });
+      if (r.ok) {
+        pendingRisks = pendingRisks.filter(x => x.page_id !== pageId);
+        updateBellBadge();
+        renderNotifPanel();
+        addNotification('風險已批准，將納入下次 RAG 評估。', 'success');
+      } else {
+        alert('操作失敗：' + (await r.json()).detail);
+      }
+    }
+
+    async function rejectRisk(pageId) {
+      if (!confirm('確認拒絕此風險並封存？')) return;
+      const r = await fetch(`${API}/api/risks/${pageId}/reject`, { method: 'PATCH' });
+      if (r.ok) {
+        pendingRisks = pendingRisks.filter(x => x.page_id !== pageId);
+        updateBellBadge();
+        renderNotifPanel();
+        addNotification('風險已拒絕並封存。', 'info');
+      } else {
+        alert('操作失敗：' + (await r.json()).detail);
+      }
     }
 
     /* ── Review Time Formatter ── */
@@ -755,10 +850,19 @@ ${today}`;
       const box = document.getElementById('risk-container');
       box.innerHTML = '<p class="col-span-2 text-slate-400 text-sm font-bold py-8 text-center">正在抓取即時新聞...</p>';
       try {
-        const resp = await (await fetch(`${API}/api/news`)).json();
+        // 並聯抓新聞、決策資料、待審核風險
+        const [resp] = await Promise.all([
+          fetch(`${API}/api/news`).then(r => r.json()),
+          loadActionData().catch(() => {}),
+          fetchPendingRisks().then(r => { pendingRisks = r; }).catch(() => {}),
+        ]);
         allNews = resp.results || [];
+        // 過濾已送入決策覆核中心的新聞（依 trigger 標題比對）
+        const triggerSet = new Set(allActions.map(a => a.trigger).filter(Boolean));
+        if (triggerSet.size) allNews = allNews.filter(n => !triggerSet.has(n.title));
         updateStats();
         filterNews(currentFilter);
+        updateBellBadge();
         if (resp.cleaned > 0)
           addNotification(`已自動移除 ${resp.cleaned} 筆逾兩週未處理新聞，風險庫保持更新。`, 'info');
         const highRisk = allNews.filter(n => n.suggested_score > 0.8);
@@ -783,8 +887,13 @@ ${today}`;
 
     function _sortNews(arr) {
       return [...arr].sort((a, b) => {
+        // Primary: risk score descending
+        const sa = a.suggested_score || 0, sb = b.suggested_score || 0;
+        if (Math.abs(sa - sb) > 0.049) return sb - sa;
+        // Secondary: urgency (breaking first)
         const ra = _urgencyRank(a.pub_date), rb = _urgencyRank(b.pub_date);
         if (ra !== rb) return ra - rb;
+        // Tertiary: pub_date desc
         const da = a.pub_date ? new Date(a.pub_date).getTime() : 0;
         const db = b.pub_date ? new Date(b.pub_date).getTime() : 0;
         return db - da;
@@ -1314,8 +1423,8 @@ ${today}`;
 
     function jumpToBom() {
       closeEvalModal();
+      document.getElementById('sku-input').value = '';
       switchPage('bom');
-      fetchBom('');
     }
 
     function jumpToOrders() {
@@ -1342,11 +1451,7 @@ ${today}`;
         btn.innerText = '✓ 決策已建立';
         btn.className = btn.className.replace('bg-blue-600 hover:bg-blue-700','bg-green-600 hover:bg-green-700');
         addNotification('採購決策已建立，待覆核中心審核。', 'warn');
-        // 更新 sidebar 待審核 badge
-        const badge = document.getElementById('pending-badge');
-        const cur = parseInt(badge.innerText) || 0;
-        badge.innerText = cur + 1;
-        badge.classList.remove('hidden');
+        loadActionData().catch(() => {});  // 重新抓取確保 badge 和統計數字準確
         setTimeout(() => {
           closeEvalModal();
           switchPage('review');
@@ -1417,9 +1522,8 @@ ${today}`;
     }
 
     function viewBom(skuPn) {
-      switchPage('bom');
       document.getElementById('sku-input').value = skuPn;
-      fetchBom(skuPn);
+      switchPage('bom');  // switchPage reads sku-input, so only one fetch fires
     }
 
     /* ── BOM ── */
@@ -1475,25 +1579,125 @@ ${today}`;
       'Rejected':'bg-red-50 text-red-600 border-red-100','駁回':'bg-red-50 text-red-600 border-red-100',
     };
 
+    // ── 決策覆核篩選器狀態 ────────────────────────────────
+    let afYear = '', afMonth = '', afDay = '', afStatus = '全部';
+
+    const _IS_PENDING  = a => ['Pending','待審核'].includes(a.status);
+    const _IS_APPROVED = a => ['Approved','核准'].includes(a.status);
+    const _IS_REJECTED = a => ['Rejected','駁回'].includes(a.status);
+
+    function sortActions(acts) {
+      const ORD = { 'Pending':0,'待審核':0,'Approved':1,'核准':1,'Rejected':2,'駁回':2 };
+      return [...acts].sort((a, b) => {
+        const sa = ORD[a.status] ?? 3, sb = ORD[b.status] ?? 3;
+        if (sa !== sb) return sa - sb;
+        return (b.review_time || '').localeCompare(a.review_time || '');
+      });
+    }
+
+    function _getFilteredActions() {
+      let f = allActions;
+      if (afYear)   f = f.filter(a => (a.review_time||'').substring(0,4) === afYear);
+      if (afMonth)  f = f.filter(a => (a.review_time||'').substring(5,7) === afMonth);
+      if (afDay)    f = f.filter(a => (a.review_time||'').substring(8,10) === afDay);
+      if (afStatus === '待審核') f = f.filter(_IS_PENDING);
+      if (afStatus === '已核准') f = f.filter(_IS_APPROVED);
+      if (afStatus === '已駁回') f = f.filter(_IS_REJECTED);
+      return sortActions(f);
+    }
+
+    function updateActionStats(filtered) {
+      document.getElementById('act-pending').innerText  = filtered.filter(_IS_PENDING).length;
+      document.getElementById('act-approved').innerText = filtered.filter(_IS_APPROVED).length;
+      document.getElementById('act-rejected').innerText = filtered.filter(_IS_REJECTED).length;
+      document.getElementById('act-value').innerText    =
+        '$' + filtered.reduce((s,a)=>s+(a.total_cost||0),0).toLocaleString('en-US',{maximumFractionDigits:0});
+      const totalPending = allActions.filter(_IS_PENDING).length;
+      const badge = document.getElementById('pending-badge');
+      totalPending > 0
+        ? (badge.innerText=totalPending, badge.classList.remove('hidden'))
+        : badge.classList.add('hidden');
+    }
+
+    function renderActionFilterBar() {
+      const bar = document.getElementById('action-filter-bar');
+      if (!bar) return;
+
+      // 可用年份（全部資料）
+      const years = [...new Set(allActions.filter(a=>a.review_time).map(a=>a.review_time.substring(0,4)))].sort().reverse();
+      if (!years.length) { bar.innerHTML = ''; return; }
+
+      // 可用月份（限縮到選定年）
+      const byYear   = afYear ? allActions.filter(a=>(a.review_time||'').startsWith(afYear)) : allActions;
+      const months   = [...new Set(byYear.filter(a=>a.review_time).map(a=>a.review_time.substring(5,7)))].sort();
+
+      // 可用日期（限縮到選定年月）
+      const prefix   = [afYear, afMonth].filter(Boolean).join('-');
+      const byMonth  = prefix ? allActions.filter(a=>(a.review_time||'').startsWith(prefix)) : byYear;
+      const days     = [...new Set(byMonth.filter(a=>a.review_time).map(a=>a.review_time.substring(8,10)))].sort();
+
+      const sel = `px-3 py-1.5 text-xs font-bold border border-slate-200 rounded-xl bg-white
+                   text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400 cursor-pointer`;
+
+      const STATUS_ACTIVE = {
+        '全部':'bg-slate-800 text-white','待審核':'bg-amber-500 text-white',
+        '已核准':'bg-green-600 text-white','已駁回':'bg-red-500 text-white',
+      };
+      const statusBtns = ['全部','待審核','已核准','已駁回'].map(s => `
+        <button onclick="setAfStatus('${s}')"
+          class="px-3 py-1.5 rounded-xl text-xs font-black transition-all
+            ${s === afStatus ? STATUS_ACTIVE[s] : 'bg-white border border-slate-200 text-slate-500 hover:bg-slate-50'}">
+          ${s}
+        </button>`).join('');
+
+      bar.innerHTML = `
+        <div class="flex flex-wrap items-center gap-2 w-full">
+          <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">日期</span>
+          <select id="af-year"  onchange="onAfYear(this.value)"  class="${sel}">
+            <option value="">全部年份</option>
+            ${years.map(y=>`<option value="${y}"${y===afYear?' selected':''}>${y}年</option>`).join('')}
+          </select>
+          <select id="af-month" onchange="onAfMonth(this.value)" class="${sel}">
+            <option value="">全部月份</option>
+            ${months.map(m=>`<option value="${m}"${m===afMonth?' selected':''}>${parseInt(m)}月</option>`).join('')}
+          </select>
+          <select id="af-day"   onchange="onAfDay(this.value)"   class="${sel}">
+            <option value="">全部日期</option>
+            ${days.map(d=>`<option value="${d}"${d===afDay?' selected':''}>${parseInt(d)}日</option>`).join('')}
+          </select>
+          <span class="w-px h-5 bg-slate-200 mx-1"></span>
+          <span class="text-[9px] font-black text-slate-400 uppercase tracking-widest">狀態</span>
+          ${statusBtns}
+        </div>`;
+    }
+
+    function onAfYear(v)  { afYear=v; afMonth=''; afDay=''; _applyActionFilter(); }
+    function onAfMonth(v) { afMonth=v; afDay=''; _applyActionFilter(); }
+    function onAfDay(v)   { afDay=v;  _applyActionFilter(); }
+    function setAfStatus(s) { afStatus=s; _applyActionFilter(); }
+
+    function _applyActionFilter() {
+      const filtered = _getFilteredActions();
+      updateActionStats(filtered);
+      renderActionFilterBar();
+      renderActionCards(filtered);
+    }
+
+    async function loadActionData() {
+      const { results } = await (await fetch(`${API}/api/actions`)).json();
+      allActions = results.filter(a => a.action_id);
+      const filtered = _getFilteredActions();
+      updateActionStats(filtered);
+      renderActionFilterBar();
+      return allActions;
+    }
+
     async function fetchActions() {
       const box = document.getElementById('action-container');
       box.innerHTML = '<p class="text-slate-400 text-sm font-bold py-4">載入中...</p>';
       try {
-        const { results } = await (await fetch(`${API}/api/actions`)).json();
-        const acts = results.filter(a => a.action_id);
-        allActions = acts;
-        const pending  = acts.filter(a => ['Pending','待審核'].includes(a.status)).length;
-        const approved = acts.filter(a => ['Approved','核准'].includes(a.status)).length;
-        const rejected = acts.filter(a => ['Rejected','駁回'].includes(a.status)).length;
-        const totalVal = acts.reduce((s,a)=>s+(a.total_cost||0),0);
-        document.getElementById('act-pending').innerText  = pending;
-        document.getElementById('act-approved').innerText = approved;
-        document.getElementById('act-rejected').innerText = rejected;
-        document.getElementById('act-value').innerText    = '$'+totalVal.toLocaleString('en-US',{maximumFractionDigits:0});
-        const badge = document.getElementById('pending-badge');
-        pending > 0 ? (badge.innerText=pending, badge.classList.remove('hidden')) : badge.classList.add('hidden');
-
-        renderActionCards(acts);
+        await loadActionData();
+        renderActionCards(_getFilteredActions());
       } catch(e) {
         box.innerHTML = `<p class="text-red-500 font-bold text-sm py-4">連線失敗：${e.message}</p>`;
       }
@@ -1548,7 +1752,15 @@ ${today}`;
                 </div>
                 <div class="text-right">
                   <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">建議補貨量</p>
-                  <p class="font-mono font-bold text-slate-700">${(a.suggested_qty||0).toLocaleString()} pcs</p>
+                  ${isPending ? `
+                    <div class="flex items-center gap-1 justify-end">
+                      <input type="number" min="1" value="${a.suggested_qty||0}"
+                        data-prev="${a.suggested_qty||0}"
+                        class="font-mono font-bold text-slate-700 border border-slate-300 rounded-lg px-2 py-0.5 w-24 text-right text-sm focus:outline-none focus:ring-1 focus:ring-blue-400"
+                        onchange="saveActionQty('${a.page_id}', this)">
+                      <span class="text-xs text-slate-400 font-bold">pcs</span>
+                    </div>` : `
+                    <p class="font-mono font-bold text-slate-700">${(a.suggested_qty||0).toLocaleString()} pcs</p>`}
                 </div>
               </div>
 
@@ -1583,6 +1795,26 @@ ${today}`;
                 </div>`:''}
             </div>`;
         }).join('') : '<p class="text-slate-400 text-sm font-bold py-4">目前沒有決策記錄</p>';
+    }
+
+    async function saveActionQty(pageId, inputEl) {
+      const qty = parseInt(inputEl.value);
+      if (!qty || qty < 1) { inputEl.value = inputEl.dataset.prev || 1; return; }
+      const prev = inputEl.dataset.prev;
+      inputEl.dataset.prev = qty;
+      try {
+        const r = await fetch(`${API}/api/actions/${pageId}/qty`, {
+          method: 'PATCH', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ qty })
+        });
+        if (!r.ok) throw new Error((await r.json()).detail);
+        const act = allActions.find(a => a.page_id === pageId);
+        if (act) { act.suggested_qty = qty; act.total_cost = act.unit_price * qty; }
+        addNotification(`補貨量已調整為 ${qty.toLocaleString()} pcs`, 'success');
+      } catch(e) {
+        inputEl.value = prev || qty;
+        alert('更新失敗：' + e.message);
+      }
     }
 
     async function approveAction(pageId) {

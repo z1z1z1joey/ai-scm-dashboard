@@ -57,6 +57,10 @@ def fetch_risks() -> list[RiskItem]:
     items = []
     for page in _query_all(settings.risk_db_id):
         p = page.get("properties", {})
+        # Skip items pending or rejected human review
+        review_status = str(_get_prop(p.get("Review_Status")) or "")
+        if review_status in ("待審核", "已拒絕"):
+            continue
         event_id = str(_get_prop(p.get("Event_ID")) or _get_prop(p.get("Name")) or "")
         items.append(RiskItem(
             page_id=page.get("id", ""),
@@ -70,6 +74,44 @@ def fetch_risks() -> list[RiskItem]:
             impacted_orders=_get_prop(p.get("Impacted_Orders")) or [],
         ))
     return items
+
+
+def fetch_pending_risks() -> list[dict]:
+    """Return risk items waiting for human approval (Review_Status == 待審核)."""
+    items = []
+    for page in _query_all(settings.risk_db_id):
+        p = page.get("properties", {})
+        review_status = str(_get_prop(p.get("Review_Status")) or "")
+        if review_status != "待審核":
+            continue
+        items.append({
+            "page_id":      page.get("id", ""),
+            "event_id":     str(_get_prop(p.get("Event_ID")) or _get_prop(p.get("Name")) or ""),
+            "risk_score":   float(_get_prop(p.get("Risk_Score")) or 0),
+            "category":     str(_get_prop(p.get("Category"))),
+            "description":  str(_get_prop(p.get("Description")) or _get_prop(p.get("Content")) or "")[:120],
+            "created_time": page.get("created_time", ""),
+        })
+    return sorted(items, key=lambda x: x["risk_score"], reverse=True)
+
+
+def approve_risk(page_id: str) -> None:
+    notion.pages.update(page_id=page_id, properties={
+        "Review_Status": {"select": {"name": "已批准"}},
+    })
+
+
+def reject_risk(page_id: str) -> None:
+    notion.pages.update(page_id=page_id, properties={
+        "Review_Status": {"select": {"name": "已拒絕"}},
+    })
+    notion.pages.update(page_id=page_id, archived=True)
+
+
+def update_action_qty(page_id: str, qty: int) -> None:
+    notion.pages.update(page_id=page_id, properties={
+        "Suggested_Qty": {"number": qty},
+    })
 
 def fetch_keyparts() -> list[KeyPart]:
     items = []
